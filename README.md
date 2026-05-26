@@ -64,21 +64,19 @@ To add contact numbers to existing user accounts, run:
 database/add_contact_number.sql
 ```
 
-## 2. Start Backend
+## 2. Configure The App
 
 ```bash
-cd server
-npm install
-copy .env.example .env
+copy server\.env.example server\.env
 ```
 
 On Mac/Linux use:
 
 ```bash
-cp .env.example .env
+cp server/.env.example server/.env
 ```
 
-Edit `.env`:
+Edit `server/.env`:
 
 ```env
 PORT=5000
@@ -91,32 +89,33 @@ DB_PASSWORD=rootpassword
 DB_NAME=dsa_learning_platform
 ```
 
-Run:
+## 3. Start The Complete App
+
+From the project root, run one command:
 
 ```bash
 npm run dev
 ```
 
-Check API:
-
-```txt
-http://localhost:5000/health
-```
-
-## 3. Start Frontend
-
-Open a new terminal:
-
-```bash
-cd client
-npm install
-npm run dev
-```
+On first run, AlgoPilot installs the `client` and `server` dependencies automatically, then starts both services together.
 
 Open:
 
 ```txt
 http://localhost:5173
+```
+
+API health check:
+
+```txt
+http://localhost:5000/health
+```
+
+Optional commands:
+
+```bash
+npm run setup
+npm run build
 ```
 
 ## 4. Google Sign-In Setup

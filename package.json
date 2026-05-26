@@ -1,0 +1,12 @@
+{
+  "name": "algopilot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "npm install --prefix server && npm install --prefix client",
+    "dev": "node scripts/dev.js",
+    "start": "node scripts/dev.js",
+    "build": "npm run build --prefix client"
+  }
+}
