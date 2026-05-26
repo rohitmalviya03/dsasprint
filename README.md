@@ -10,6 +10,7 @@ This version adds:
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
+- Mock interview scheduling with focus areas, time slots, and cancellation management
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
 
@@ -63,6 +64,12 @@ To add contact numbers to existing user accounts, run:
 
 ```txt
 database/add_contact_number.sql
+```
+
+To enable mock interview scheduling for an existing database, run:
+
+```txt
+database/add_mock_interviews.sql
 ```
 
 ## 2. Configure The App
@@ -207,6 +214,8 @@ For production deployment:
 
 - `users`
 - `problem_progress`
+- `feedback`
+- `mock_interviews`
 
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
@@ -242,4 +251,7 @@ PUT  /api/progress/:problemId
 POST /api/progress/bulk-import
 DELETE /api/progress/reset
 POST /api/feedback
+GET  /api/mock-interviews
+POST /api/mock-interviews
+PATCH /api/mock-interviews/:id/cancel
 ```

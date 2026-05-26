@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.routes.js';
 import progressRoutes from './routes/progress.routes.js';
 import feedbackRoutes from './routes/feedback.routes.js';
+import mockInterviewRoutes from './routes/mock-interview.routes.js';
 import { configureGoogleAuth } from './auth/google.js';
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -76,6 +77,7 @@ app.use('/api/auth/signup', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/mock-interviews', mockInterviewRoutes);
 
 const clientDist = path.resolve(serverDir, '../../client/dist');
 const clientEntry = path.join(clientDist, 'index.html');

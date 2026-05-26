@@ -99,6 +99,22 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .feedback-topic:first-of-type { margin-top: 14px; }
 .feedback-topic b { display: block; margin-bottom: 5px; }
 .feedback-topic span { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.mock-layout { display: grid; grid-template-columns: minmax(340px, .9fr) minmax(390px, 1.1fr); gap: 16px; }
+.mock-form h2, .mock-schedule h2 { margin: 0 0 10px; }
+.mock-form .muted { margin: 0 0 18px; line-height: 1.45; }
+.mock-form label { display: grid; gap: 8px; font-size: 14px; font-weight: 620; color: #334449; }
+.mock-form textarea { min-height: 106px; resize: vertical; }
+.mock-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.mock-list { display: grid; gap: 12px; }
+.mock-slot { border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.mock-slot-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mock-slot-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.mock-time { margin: 13px 0 0; color: #334449; font-size: 14px; font-weight: 620; }
+.mock-note { margin: 11px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.mock-cancel { margin-top: 14px; }
+.badge.Scheduled { background: #e7f7f2; border-color: #a7dbc9; color: var(--primary-strong); }
+.badge.Completed { background: #eef3f5; color: #53656d; }
+.badge.Cancelled { background: #fff2f2; border-color: #efd0d0; color: #9b3c3c; }
 .support-card { border-radius: 8px; padding: 15px; margin-top: 8px; background: var(--focus); }
 .support-card b, .support-card span { display: block; margin-bottom: 6px; }
 .support-card span { color: var(--muted); font-size: 14px; }
@@ -171,6 +187,7 @@ a { color: var(--primary); }
   .side { position: relative; height: auto; }
   .grid.cols5, .grid.cols4, .grid.cols2 { grid-template-columns: 1fr; }
   .feedback-layout { grid-template-columns: 1fr; }
+  .mock-layout { grid-template-columns: 1fr; }
   .topbar { display: block; }
   .main { padding: 14px; }
   .app-footer { display: block; text-align: center; }
