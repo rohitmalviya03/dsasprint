@@ -157,6 +157,12 @@ GOOGLE_CALLBACK_URL=https://your-domain.example/api/auth/google/callback
 ```
 
 `VITE_API_URL` is not needed when the frontend and API are deployed together on the same domain.
+Use the exact Hostinger URL for `CLIENT_URL`, for example:
+
+```env
+CLIENT_URL=https://powderblue-rhinoceros-970921.hostingersite.com
+GOOGLE_CALLBACK_URL=https://powderblue-rhinoceros-970921.hostingersite.com/api/auth/google/callback
+```
 
 ## 4. Google Sign-In Setup
 

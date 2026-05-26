@@ -18,6 +18,7 @@ dotenv.config({ path: path.resolve(serverDir, '../.env') });
 configureGoogleAuth();
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Allow local frontend during development and configured frontend in production.
 // Example CLIENT_URL=http://localhost:5173 or https://yourdomain.com
@@ -26,21 +27,35 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const corsOptions = {
-  origin(origin, callback) {
-    // Allow tools like Postman/curl where origin is missing
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
+const corsDefaults = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 204,
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+function ownOrigin(req) {
+  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0].trim();
+  const host = forwardedHost || req.get('host');
+  if (!host) return null;
+  const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
+  return `${forwardedProtocol || req.protocol}://${host}`;
+}
+
+function corsOptionsFor(req) {
+  return {
+    ...corsDefaults,
+    origin(origin, callback) {
+      // Allow server-to-server clients and the frontend served from this host.
+      if (!origin) return callback(null, true);
+      if (origin === ownOrigin(req) || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+  };
+}
+
+app.use((req, res, next) => cors(corsOptionsFor(req))(req, res, next));
+app.options('*', (req, res, next) => cors(corsOptionsFor(req))(req, res, next));
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(express.json({ limit: '1mb' }));
