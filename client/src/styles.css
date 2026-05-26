@@ -139,6 +139,8 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .google-button:hover { background: #f8faf9; border-color: #bfcac8; }
 .google-letter { display: inline-grid; place-items: center; width: 22px; color: #4285f4; font-size: 18px; font-weight: 750; }
 .auth-foot { text-align: center; color: #8b989a; font-size: 13px; margin: 25px 0 0; }
+.auth-copyright { text-align: center; color: #9aa6a8; font-size: 12px; margin: 28px 0 0; }
+.app-footer { margin-top: 28px; padding: 20px 0 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; text-align: center; }
 .hidden { display: none !important; }
 .toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: white; padding: 12px 16px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); z-index: 20; }
 a { color: var(--primary); }

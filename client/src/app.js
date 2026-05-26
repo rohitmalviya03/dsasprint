@@ -1,5 +1,6 @@
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 const BRAND_NAME = 'DSASprint';
+const COPYRIGHT_TEXT = `&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All rights reserved.`;
 let problems = [];
 let progress = {};
 let user = null;
@@ -214,6 +215,7 @@ function renderAuth() {
         <div class="auth-divider"><span>or</span></div>
         <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>
         <p class="auth-foot">Secure session protection enabled</p>
+        <p class="auth-copyright">${COPYRIGHT_TEXT}</p>
       </div>
     </section>
   </main>`);
@@ -312,6 +314,7 @@ function render() {
         <button class="card stat-filter ${dashboardFilter === 'due' ? 'active' : ''}" data-filter="due"><span class="stat">${due}</span><span class="muted">Due Today</span></button>
       </div>
       <section id="content"></section>
+      <footer class="app-footer">${COPYRIGHT_TEXT}</footer>
     </main>
   </div>`);
 
