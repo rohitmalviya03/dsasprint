@@ -178,7 +178,7 @@ function renderAuth() {
   const signingUp = authMode === 'signup';
   layout(`<main class="auth-page">
     <section class="auth-showcase">
-      <div class="wordmark inverse"><span class="brand-mark">A</span><span>${BRAND_NAME}</span></div>
+      <div class="wordmark inverse"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="showcase-copy">
         <p class="overline">DSA PRACTICE TRACKER</p>
         <h1>Practice with direction.</h1>
@@ -192,7 +192,7 @@ function renderAuth() {
       </div>
     </section>
     <section class="auth-panel">
-      <div class="wordmark compact"><span class="brand-mark">A</span><span>${BRAND_NAME}</span></div>
+      <div class="wordmark compact"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="auth-box">
         <p class="overline">${signingUp ? 'START PRACTICING' : 'WELCOME BACK'}</p>
         <h2>${signingUp ? 'Create your account' : 'Sign in to your account'}</h2>
@@ -292,7 +292,7 @@ function render() {
 
   layout(`<div class="shell">
     <aside class="side">
-      <div class="wordmark inverse side-wordmark"><span class="brand-mark">A</span><span>${BRAND_NAME}</span></div>
+      <div class="wordmark inverse side-wordmark"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="user-block"><div class="avatar">${escapeHtml((user.name || 'A').charAt(0).toUpperCase())}</div><p>${escapeHtml(user.name)}<br><span>${escapeHtml(user.email)}</span></p></div>
       <div class="nav">
         <button data-v="learn">Learn</button>
