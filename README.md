@@ -1,4 +1,4 @@
-# DSA Learning Platform — Production MySQL Version
+# DSASprint - DSA Practice Tracker
 
 This version adds:
 - Email/password signup and login
@@ -97,7 +97,7 @@ From the project root, run one command:
 npm run dev
 ```
 
-On first run, AlgoPilot installs the `client` and `server` dependencies automatically, then starts both services together.
+On first run, DSASprint installs the `client` and `server` dependencies automatically, then starts both services together.
 
 Open:
 

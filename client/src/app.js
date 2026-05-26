@@ -1,5 +1,5 @@
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const BRAND_NAME = 'AlgoPilot';
+const BRAND_NAME = 'DSASprint';
 let problems = [];
 let progress = {};
 let user = null;
@@ -489,7 +489,7 @@ function renderPlan() {
 function renderFeedback() {
   $('content').innerHTML = `<div class="feedback-layout">
     <div class="card feedback-form">
-      <p class="overline">HELP SHAPE ALGOPILOT</p>
+      <p class="overline">HELP SHAPE DSASPRINT</p>
       <h2>Tell us what would improve your practice</h2>
       <p class="muted">Your feedback is tied to your account so product issues can be followed up accurately.</p>
       <form id="feedbackForm" class="grid">
