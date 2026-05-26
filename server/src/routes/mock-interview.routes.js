@@ -8,6 +8,8 @@ const router = express.Router();
 const durationOptions = [30, 45, 60, 90];
 
 const interviewSchema = z.object({
+  interview_track: z.enum(['DSA', 'Development']),
+  interview_mode: z.enum(['AI', 'Person']),
   focus_area: z.string().trim().min(2).max(80),
   interview_type: z.enum(['Technical', 'Behavioral', 'Mixed']),
   scheduled_at: z.string().trim().min(1),
@@ -29,7 +31,8 @@ router.get('/', asyncHandler(async (req, res) => {
     [req.user.id]
   );
   const [interviews] = await pool.execute(
-    `SELECT id, focus_area, interview_type, scheduled_at, duration_minutes, notes, status, created_at
+    `SELECT id, interview_track, interview_mode, focus_area, interview_type, scheduled_at,
+       duration_minutes, notes, status, created_at
      FROM mock_interviews
      WHERE user_id = ?
      ORDER BY scheduled_at ASC`,
@@ -41,10 +44,10 @@ router.get('/', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const parsed = interviewSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Please provide a valid interview type, focus area, time slot, and duration.' });
+    return res.status(400).json({ message: 'Please provide a valid track, interview mode, round type, focus area, time slot, and duration.' });
   }
 
-  const { focus_area, interview_type, duration_minutes, notes } = parsed.data;
+  const { interview_track, interview_mode, focus_area, interview_type, duration_minutes, notes } = parsed.data;
   const scheduledAt = new Date(parsed.data.scheduled_at);
   if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
     return res.status(400).json({ message: 'Choose a future date and time for your mock interview.' });
@@ -67,9 +70,9 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const [result] = await pool.execute(
     `INSERT INTO mock_interviews
-      (user_id, focus_area, interview_type, scheduled_at, duration_minutes, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [req.user.id, focus_area, interview_type, scheduledAt, duration_minutes, notes || null]
+      (user_id, interview_track, interview_mode, focus_area, interview_type, scheduled_at, duration_minutes, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.user.id, interview_track, interview_mode, focus_area, interview_type, scheduledAt, duration_minutes, notes || null]
   );
 
   res.status(201).json({ id: result.insertId, message: 'Mock interview scheduled.' });

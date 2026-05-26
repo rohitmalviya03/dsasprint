@@ -514,14 +514,27 @@ function formatInterviewTime(value) {
 }
 
 function renderMockInterviews() {
-  const focusAreas = [...new Set(problems.map((problem) => problemTopic(problem)))];
   $('content').innerHTML = `<div class="mock-layout">
     <div class="card mock-form">
       <p class="overline">PRACTICE UNDER PRESSURE</p>
       <h2>Schedule a mock interview</h2>
-      <p class="muted">Reserve a focused practice slot and prepare what you want to explain clearly.</p>
+      <p class="muted">Practice DSA problem solving or development discussions with an AI or a person.</p>
       <form id="mockForm" class="grid">
-        <label>Interview type
+        <fieldset class="choice-field">
+          <legend>Interview track</legend>
+          <div class="choice-switch">
+            <label><input type="radio" name="mockTrack" value="DSA" checked><span>DSA</span></label>
+            <label><input type="radio" name="mockTrack" value="Development"><span>Development</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="choice-field">
+          <legend>Conducted by</legend>
+          <div class="choice-switch">
+            <label><input type="radio" name="mockMode" value="AI" checked><span>AI Interview</span></label>
+            <label><input type="radio" name="mockMode" value="Person"><span>Person Interview</span></label>
+          </div>
+        </fieldset>
+        <label>Round type
           <select id="mockType" required>
             <option>Technical</option>
             <option>Behavioral</option>
@@ -529,9 +542,7 @@ function renderMockInterviews() {
           </select>
         </label>
         <label>Focus area
-          <select id="mockFocus" required>
-            ${focusAreas.map((area) => `<option>${escapeHtml(area)}</option>`).join('')}
-          </select>
+          <select id="mockFocus" required></select>
         </label>
         <div class="grid cols2 mock-fields">
           <label>Date<input id="mockDate" type="date" min="${todayValue()}" required></label>
@@ -562,8 +573,21 @@ function renderMockInterviews() {
       <div id="mockList" class="mock-list"><p class="muted">Loading your mock interviews...</p></div>
     </div>
   </div>`;
+  document.querySelectorAll('input[name="mockTrack"]').forEach((input) => {
+    input.onchange = () => drawMockFocusAreas(input.value);
+  });
+  drawMockFocusAreas('DSA');
   $('mockForm').onsubmit = submitMockInterview;
   loadMockInterviews();
+}
+
+function drawMockFocusAreas(track) {
+  const select = $('mockFocus');
+  if (!select) return;
+  const areas = track === 'Development'
+    ? ['Frontend Development', 'Backend Development', 'Full Stack Development', 'Database and SQL', 'API Design', 'System Design', 'Testing and Debugging', 'DevOps and Deployment']
+    : [...new Set(problems.map((problem) => problemTopic(problem)))];
+  select.innerHTML = areas.map((area) => `<option>${escapeHtml(area)}</option>`).join('');
 }
 
 async function loadMockInterviews() {
@@ -589,7 +613,7 @@ function drawMockInterviews() {
     const canCancel = interview.status === 'Scheduled' && new Date(interview.scheduled_at) > new Date();
     return `<article class="mock-slot">
       <div class="mock-slot-head">
-        <div><b>${escapeHtml(interview.focus_area)}</b><p>${escapeHtml(interview.interview_type)} interview</p></div>
+        <div><b>${escapeHtml(interview.focus_area)}</b><p>${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_mode)} Interview | ${escapeHtml(interview.interview_type)} round</p></div>
         <span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>
       </div>
       <p class="mock-time">${escapeHtml(formatInterviewTime(interview.scheduled_at))} | ${Number(interview.duration_minutes)} minutes</p>
@@ -616,6 +640,8 @@ async function submitMockInterview(event) {
     await api('/api/mock-interviews', {
       method: 'POST',
       body: JSON.stringify({
+        interview_track: document.querySelector('input[name="mockTrack"]:checked').value,
+        interview_mode: document.querySelector('input[name="mockMode"]:checked').value,
         focus_area: $('mockFocus').value,
         interview_type: $('mockType').value,
         scheduled_at: scheduledAt.toISOString(),
@@ -624,6 +650,7 @@ async function submitMockInterview(event) {
       })
     });
     $('mockForm').reset();
+    drawMockFocusAreas('DSA');
     toast('Mock interview scheduled');
     await loadMockInterviews();
   } catch (error) {

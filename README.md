@@ -10,7 +10,7 @@ This version adds:
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
-- Mock interview scheduling with focus areas, time slots, and cancellation management
+- Mock interview scheduling for DSA or development practice, with AI/person modes and slot management
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
 
@@ -70,6 +70,12 @@ To enable mock interview scheduling for an existing database, run:
 
 ```txt
 database/add_mock_interviews.sql
+```
+
+If mock interview scheduling was already enabled before DSA/development tracks and AI/person modes were added, run:
+
+```txt
+database/upgrade_mock_interview_options.sql
 ```
 
 ## 2. Configure The App

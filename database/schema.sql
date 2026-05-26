@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE TABLE IF NOT EXISTS mock_interviews (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id CHAR(36) NOT NULL,
+  interview_track ENUM('DSA','Development') NOT NULL DEFAULT 'DSA',
+  interview_mode ENUM('AI','Person') NOT NULL DEFAULT 'AI',
   focus_area VARCHAR(80) NOT NULL,
   interview_type ENUM('Technical','Behavioral','Mixed') NOT NULL DEFAULT 'Technical',
   scheduled_at TIMESTAMP NOT NULL,
