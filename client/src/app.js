@@ -6,7 +6,6 @@ const SUPPORT_EMAIL = 'help.dsasprint@outlook.com';
 const COPYRIGHT_TEXT = `&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All rights reserved.`;
 let problems = [];
 let progress = {};
-let mockInterviews = [];
 let user = null;
 let selectedId = null;
 let view = 'learn';
@@ -306,7 +305,7 @@ function render() {
       <div class="nav">
         <button data-v="learn">Learn</button>
         <button data-v="plan">Revision Plan</button>
-        <button data-v="mock">Mock Interviews</button>
+        <button data-v="mock" class="nav-feature">Mock Interviews <span>Coming Soon</span></button>
         <button data-v="feedback">Feedback</button>
         <button data-v="settings">Settings</button>
         <button id="logout">Logout</button>
@@ -504,21 +503,12 @@ function renderPlan() {
   });
 }
 
-function formatInterviewTime(value) {
-  const scheduled = new Date(value);
-  if (Number.isNaN(scheduled.getTime())) return 'Time unavailable';
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  }).format(scheduled);
-}
-
 function renderMockInterviews() {
   $('content').innerHTML = `<div class="mock-layout">
     <div class="card mock-form">
-      <p class="overline">PRACTICE UNDER PRESSURE</p>
-      <h2>Schedule a mock interview</h2>
-      <p class="muted">Practice DSA problem solving or development discussions with an AI or a person.</p>
+      <p class="overline">PRACTICE UNDER PRESSURE <span class="soon-tag">COMING SOON</span></p>
+      <h2>Mock interviews are coming soon</h2>
+      <p class="muted">Soon you will be able to practice DSA problem solving or development discussions with an AI or a person.</p>
       <form id="mockForm" class="grid">
         <fieldset class="choice-field">
           <legend>Interview track</legend>
@@ -559,26 +549,32 @@ function renderMockInterviews() {
         <label>Preparation notes
           <textarea id="mockNotes" rows="4" maxlength="500" placeholder="Topics, questions, or points to practice explaining."></textarea>
         </label>
-        <button class="primary" id="mockSubmit" type="submit">Schedule interview</button>
+        <button class="primary" id="mockSubmit" type="submit" disabled>Schedule interview - Coming Soon</button>
       </form>
     </div>
     <div class="card mock-schedule">
       <div class="mock-head">
         <div>
-          <p class="overline">YOUR SLOTS</p>
-          <h2>Interview schedule</h2>
+          <p class="overline">ON THE WAY</p>
+          <h2>What this feature will include</h2>
         </div>
-        <span class="badge" id="mockCount">0 scheduled</span>
+        <span class="badge soon-badge">Coming Soon</span>
       </div>
-      <div id="mockList" class="mock-list"><p class="muted">Loading your mock interviews...</p></div>
+      <div class="mock-preview-list">
+        <p><b>DSA Interviews</b><span>Practice patterns, problem-solving explanations, and complexity analysis.</span></p>
+        <p><b>Development Interviews</b><span>Prepare frontend, backend, database, API, and system design discussions.</span></p>
+        <p><b>AI or Person Mode</b><span>Choose guided AI practice or schedule a person-led session when launched.</span></p>
+      </div>
     </div>
   </div>`;
   document.querySelectorAll('input[name="mockTrack"]').forEach((input) => {
     input.onchange = () => drawMockFocusAreas(input.value);
   });
   drawMockFocusAreas('DSA');
-  $('mockForm').onsubmit = submitMockInterview;
-  loadMockInterviews();
+  $('mockForm').onsubmit = (event) => {
+    event.preventDefault();
+    toast('Mock interviews are coming soon.');
+  };
 }
 
 function drawMockFocusAreas(track) {
@@ -588,87 +584,6 @@ function drawMockFocusAreas(track) {
     ? ['Frontend Development', 'Backend Development', 'Full Stack Development', 'Database and SQL', 'API Design', 'System Design', 'Testing and Debugging', 'DevOps and Deployment']
     : [...new Set(problems.map((problem) => problemTopic(problem)))];
   select.innerHTML = areas.map((area) => `<option>${escapeHtml(area)}</option>`).join('');
-}
-
-async function loadMockInterviews() {
-  try {
-    const data = await api('/api/mock-interviews');
-    mockInterviews = data.interviews || [];
-    drawMockInterviews();
-  } catch (error) {
-    if ($('mockList')) $('mockList').innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
-  }
-}
-
-function drawMockInterviews() {
-  const list = $('mockList');
-  if (!list) return;
-  const scheduledCount = mockInterviews.filter((interview) => interview.status === 'Scheduled').length;
-  $('mockCount').textContent = `${scheduledCount} scheduled`;
-  if (!mockInterviews.length) {
-    list.innerHTML = '<p class="muted">No mock interview slots yet. Choose your first practice session.</p>';
-    return;
-  }
-  list.innerHTML = mockInterviews.map((interview) => {
-    const canCancel = interview.status === 'Scheduled' && new Date(interview.scheduled_at) > new Date();
-    return `<article class="mock-slot">
-      <div class="mock-slot-head">
-        <div><b>${escapeHtml(interview.focus_area)}</b><p>${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_mode)} Interview | ${escapeHtml(interview.interview_type)} round</p></div>
-        <span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>
-      </div>
-      <p class="mock-time">${escapeHtml(formatInterviewTime(interview.scheduled_at))} | ${Number(interview.duration_minutes)} minutes</p>
-      ${interview.notes ? `<p class="mock-note">${escapeHtml(interview.notes)}</p>` : ''}
-      ${canCancel ? `<button class="secondary mock-cancel" data-id="${Number(interview.id)}">Cancel slot</button>` : ''}
-    </article>`;
-  }).join('');
-  list.querySelectorAll('.mock-cancel').forEach((button) => {
-    button.onclick = () => cancelMockInterview(button.dataset.id);
-  });
-}
-
-async function submitMockInterview(event) {
-  event.preventDefault();
-  const button = $('mockSubmit');
-  const scheduledAt = new Date(`${$('mockDate').value}T${$('mockTime').value}`);
-  if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
-    toast('Choose a future interview time.');
-    return;
-  }
-  button.disabled = true;
-  button.textContent = 'Scheduling...';
-  try {
-    await api('/api/mock-interviews', {
-      method: 'POST',
-      body: JSON.stringify({
-        interview_track: document.querySelector('input[name="mockTrack"]:checked').value,
-        interview_mode: document.querySelector('input[name="mockMode"]:checked').value,
-        focus_area: $('mockFocus').value,
-        interview_type: $('mockType').value,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: Number($('mockDuration').value),
-        notes: $('mockNotes').value || null
-      })
-    });
-    $('mockForm').reset();
-    drawMockFocusAreas('DSA');
-    toast('Mock interview scheduled');
-    await loadMockInterviews();
-  } catch (error) {
-    toast(error.message);
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Schedule interview';
-  }
-}
-
-async function cancelMockInterview(id) {
-  try {
-    await api(`/api/mock-interviews/${encodeURIComponent(id)}/cancel`, { method: 'PATCH' });
-    toast('Interview slot cancelled');
-    await loadMockInterviews();
-  } catch (error) {
-    toast(error.message);
-  }
 }
 
 function renderFeedback() {

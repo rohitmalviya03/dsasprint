@@ -10,7 +10,7 @@ This version adds:
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
-- Mock interview scheduling for DSA or development practice, with AI/person modes and slot management
+- Mock interview preview for DSA or development practice with AI/person modes (coming soon)
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
 
@@ -66,7 +66,7 @@ To add contact numbers to existing user accounts, run:
 database/add_contact_number.sql
 ```
 
-To enable mock interview scheduling for an existing database, run:
+The Mock Interviews screen is currently a coming-soon preview, so no production database migration is required yet. When scheduling is launched, enable its table with:
 
 ```txt
 database/add_mock_interviews.sql
@@ -257,7 +257,7 @@ PUT  /api/progress/:problemId
 POST /api/progress/bulk-import
 DELETE /api/progress/reset
 POST /api/feedback
-GET  /api/mock-interviews
-POST /api/mock-interviews
-PATCH /api/mock-interviews/:id/cancel
+GET  /api/mock-interviews (preview state)
+POST /api/mock-interviews (disabled until launch)
+PATCH /api/mock-interviews/:id/cancel (disabled until launch)
 ```
