@@ -156,7 +156,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=https://your-domain.example/api/auth/google/callback
 ```
 
-`VITE_API_URL` is not needed when the frontend and API are deployed together on the same domain.
+Do not add `VITE_API_URL` in Hostinger when the frontend and API are deployed together on the same domain. Production builds always call the same deployed origin for `/api/...`.
 Use the exact Hostinger URL for `CLIENT_URL`, for example:
 
 ```env
