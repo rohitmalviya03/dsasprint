@@ -118,6 +118,46 @@ npm run setup
 npm run build
 ```
 
+For a single-port production-style local run:
+
+```bash
+npm run build
+npm start
+```
+
+Then open `http://localhost:5000`.
+
+## Hostinger Node Deployment
+
+Deploy from the repository root, not the `client` folder:
+
+```txt
+Root directory: .
+Build command: npm run build
+Package manager: npm
+Output directory: client/dist
+Entry file: server/src/server.js
+Node version: 22.x
+```
+
+Add these environment variables in Hostinger:
+
+```env
+NODE_ENV=production
+CLIENT_URL=https://your-domain.example
+JWT_SECRET=your_long_random_secret
+DB_HOST=your_mysql_host
+DB_PORT=3306
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
+DB_NAME=dsa_learning_platform
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CALLBACK_URL=https://your-domain.example/api/auth/google/callback
+```
+
+`VITE_API_URL` is not needed when the frontend and API are deployed together on the same domain.
+
 ## 4. Google Sign-In Setup
 
 1. Go to Google Cloud Console.

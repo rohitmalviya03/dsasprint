@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "setup": "npm install --prefix server && npm install --prefix client",
+    "postinstall": "npm run setup",
     "dev": "node scripts/dev.js",
-    "start": "node scripts/dev.js",
-    "build": "npm run build --prefix client"
+    "start": "node server/src/server.js",
+    "build": "npm run build --prefix client && node scripts/copy-static.js"
   }
 }

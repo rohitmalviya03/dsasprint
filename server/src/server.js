@@ -5,12 +5,16 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import passport from 'passport';
 import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.routes.js';
 import progressRoutes from './routes/progress.routes.js';
 import feedbackRoutes from './routes/feedback.routes.js';
 import { configureGoogleAuth } from './auth/google.js';
 
-dotenv.config();
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(serverDir, '../.env') });
 configureGoogleAuth();
 
 const app = express();
@@ -58,6 +62,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
+const clientDist = path.resolve(serverDir, '../../client/dist');
+const clientEntry = path.join(clientDist, 'index.html');
+if (existsSync(clientEntry)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path === '/health' || req.path.startsWith('/api/')) return next();
+    return res.sendFile(clientEntry);
+  });
+}
+
 app.use((err, _req, res, _next) => {
   console.error(err.message || err);
   const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err.message || 'Server error');
@@ -65,4 +79,4 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT || 5000);
-app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+app.listen(port, () => console.log(`DSASprint running on http://localhost:${port}`));
