@@ -1,5 +1,6 @@
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 const BRAND_NAME = 'DSASprint';
+const SUPPORT_EMAIL = 'help.dsasprint@outlook.com';
 const COPYRIGHT_TEXT = `&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All rights reserved.`;
 let problems = [];
 let progress = {};
@@ -215,6 +216,7 @@ function renderAuth() {
         <div class="auth-divider"><span>or</span></div>
         <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>
         <p class="auth-foot">Secure session protection enabled</p>
+        <p class="help-link">Need help? <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
         <p class="auth-copyright">${COPYRIGHT_TEXT}</p>
       </div>
     </section>
@@ -314,7 +316,7 @@ function render() {
         <button class="card stat-filter ${dashboardFilter === 'due' ? 'active' : ''}" data-filter="due"><span class="stat">${due}</span><span class="muted">Due Today</span></button>
       </div>
       <section id="content"></section>
-      <footer class="app-footer">${COPYRIGHT_TEXT}</footer>
+      <footer class="app-footer"><span>${COPYRIGHT_TEXT}</span><a href="mailto:${SUPPORT_EMAIL}">Help Center: ${SUPPORT_EMAIL}</a></footer>
     </main>
   </div>`);
 
@@ -525,6 +527,7 @@ function renderFeedback() {
       <div class="feedback-topic"><b>Feature requests</b><span>New tracking, planning, or practice workflows</span></div>
       <div class="feedback-topic"><b>Bug reports</b><span>Anything that blocks progress or feels incorrect</span></div>
       <div class="feedback-topic"><b>Experience</b><span>Clarity, speed, design, and everyday usability</span></div>
+      <div class="support-card"><b>Help Center</b><span>Need direct assistance?</span><a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></div>
     </div>
   </div>`;
   $('feedbackMessage').oninput = () => {
