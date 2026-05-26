@@ -11,6 +11,7 @@ This version adds:
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
 - Mock interview preview for DSA or development practice with AI/person modes (coming soon)
+- SEO metadata, structured data, sitemap, and crawler instructions for `https://dsasprint.in/`
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
 
@@ -176,6 +177,20 @@ Use the exact Hostinger URL for `CLIENT_URL`, for example:
 ```env
 CLIENT_URL=https://powderblue-rhinoceros-970921.hostingersite.com
 GOOGLE_CALLBACK_URL=https://powderblue-rhinoceros-970921.hostingersite.com/api/auth/google/callback
+```
+
+For the public DSASprint domain, keep the production app reachable at:
+
+```txt
+https://dsasprint.in/
+https://dsasprint.in/robots.txt
+https://dsasprint.in/sitemap.xml
+```
+
+After deployment, add `https://dsasprint.in/` in Google Search Console and submit:
+
+```txt
+https://dsasprint.in/sitemap.xml
 ```
 
 ## 4. Google Sign-In Setup

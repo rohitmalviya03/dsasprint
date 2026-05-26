@@ -17,6 +17,11 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, system-ui, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
 button, input, select, textarea { font: inherit; }
+.initial-page { display: grid; align-content: center; gap: 46px; min-height: 100vh; padding: clamp(28px, 7vw, 82px); background: var(--ink); color: #fff; }
+.initial-copy { max-width: 620px; }
+.initial-copy h1 { margin: 0 0 18px; color: #fff; font-size: clamp(42px, 5vw, 62px); line-height: 1.06; letter-spacing: 0; }
+.initial-copy > p:not(.overline) { max-width: 500px; margin: 0; color: #adbbbd; font-size: 18px; line-height: 1.55; }
+.initial-copy .initial-upcoming { margin-top: 20px; color: #f3be63; font-size: 14px; }
 .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
 .side { background: var(--ink); color: white; padding: 22px 18px; position: sticky; top: 0; height: 100vh; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 21px; font-weight: 760; }
@@ -132,6 +137,8 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .showcase-copy { position: relative; z-index: 1; max-width: 500px; }
 .showcase-copy h1 { font-size: clamp(46px, 5vw, 62px); line-height: 1.05; letter-spacing: 0; margin: 0 0 18px; color: #fff; }
 .showcase-subtitle { font-size: 18px; line-height: 1.55; color: #adbbbd; margin: 0; max-width: 390px; }
+.showcase-upcoming { display: flex; align-items: center; gap: 10px; margin: 22px 0 0; color: #cfdbdc; font-size: 14px; line-height: 1.45; }
+.showcase-upcoming span { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; background: #332a20; color: #f3be63; font-size: 11px; font-weight: 750; text-transform: uppercase; }
 .session-preview { position: relative; z-index: 1; width: min(480px, 100%); padding: 18px; border: 1px solid #27383a; border-radius: 8px; background: #111d20; box-shadow: 0 24px 48px rgba(0, 0, 0, .22); }
 .preview-head { display: flex; justify-content: space-between; align-items: center; color: #dbe7e7; font-weight: 650; margin-bottom: 12px; }
 .preview-date { border-radius: 999px; padding: 5px 10px; background: #332a20; color: #f3be63; font-size: 12px; }

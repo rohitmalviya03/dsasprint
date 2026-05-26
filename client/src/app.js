@@ -184,9 +184,10 @@ function renderAuth() {
     <section class="auth-showcase">
       <div class="wordmark inverse"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="showcase-copy">
-        <p class="overline">DSA PRACTICE TRACKER</p>
-        <h1>Practice with direction.</h1>
-        <p class="showcase-subtitle">Build problem-solving momentum with a focused daily workspace.</p>
+        <p class="overline">DSA PREPARATION TRACKER</p>
+        <h1>Prepare for DSA interviews.</h1>
+        <p class="showcase-subtitle">Track coding problems, revise core patterns, and build clear interview explanations.</p>
+        <p class="showcase-upcoming"><span>Coming soon</span> Mock interview practice with AI and person modes.</p>
       </div>
       <div class="session-preview" aria-hidden="true">
         <div class="preview-head"><span>Today's focus</span><span class="preview-date">3 due</span></div>
