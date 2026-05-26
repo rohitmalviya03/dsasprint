@@ -1,3 +1,5 @@
+import { getLearningGuide } from './learning-guide.js';
+
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 const BRAND_NAME = 'DSASprint';
 const SUPPORT_EMAIL = 'help.dsasprint@outlook.com';
@@ -422,6 +424,7 @@ function selectProblem(id, fromPlan = false) {
 
 function showDetail(problem, id) {
   const item = getProgress(id);
+  const guide = getLearningGuide(problem);
   const article = externalLink(problem.article);
   const video = externalLink(problem.video);
   const resources = [
@@ -431,8 +434,13 @@ function showDetail(problem, id) {
   $('detail').innerHTML = `<h2>${escapeHtml(problemName(problem))}</h2>
     <p><span class="badge">${escapeHtml(problemTopic(problem))}</span> <span class="badge difficulty-${escapeHtml(problemDifficulty(problem).toLowerCase())}">${escapeHtml(problemDifficulty(problem))}</span></p>
     ${resources ? `<div class="row resources">${resources}</div>` : ''}
-    <p><b>Pattern:</b> ${escapeHtml(problem.pattern || problem.approach || 'Identify constraints, choose an optimal data structure, then optimize.')}</p>
-    <p><b>Interview Approach:</b> ${escapeHtml(problem.explanation || problem.interview_explanation || 'Explain the idea, dry run an example, handle edge cases, then code.')}</p>
+    <div class="learning-grid">
+      <section class="learning-card"><h3>Core pattern</h3><p>${escapeHtml(guide.pattern)}</p></section>
+      <section class="learning-card"><h3>Solving method</h3><p>${escapeHtml(guide.method)}</p></section>
+      <section class="learning-card"><h3>Interview explanation method</h3><ol>${guide.interviewSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol></section>
+      <section class="learning-card"><h3>Important points</h3><ul>${guide.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}</ul></section>
+      <section class="learning-card"><h3>Common mistakes</h3><ul>${guide.mistakes.map((mistake) => `<li>${escapeHtml(mistake)}</li>`).join('')}</ul></section>
+    </div>
     <div class="grid">
       <label>Status
         <select id="pstatus">${statusOptions.map((status) => `<option ${item.status === status ? 'selected' : ''}>${status}</option>`).join('')}</select>

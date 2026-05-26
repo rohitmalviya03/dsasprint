@@ -58,6 +58,11 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .resource-link { display: inline-flex; align-items: center; min-height: 42px; border-radius: 8px; padding: 10px 14px; background: var(--primary); color: white; text-decoration: none; font-weight: 600; }
 .resource-link.video { background: var(--accent); }
 .resource-link:hover { filter: brightness(.93); }
+.learning-grid { display: grid; gap: 12px; margin: 18px 0 20px; }
+.learning-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: #fff; }
+.learning-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--text); }
+.learning-card p { margin: 0; font-size: 14px; line-height: 1.55; color: #34464b; }
+.learning-card ol, .learning-card ul { margin: 0; padding-left: 20px; color: #34464b; font-size: 14px; line-height: 1.55; }
 .problem-list { max-height: 70vh; overflow: auto; padding-right: 4px; }
 .problem { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; background: white; cursor: pointer; transition: .2s; }
 .problem:hover { border-color: #8bc8bd; }

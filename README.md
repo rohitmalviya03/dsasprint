@@ -9,6 +9,7 @@ This version adds:
 - Live progress refresh across open sessions
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
+- Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
 
