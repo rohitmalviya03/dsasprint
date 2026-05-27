@@ -13,7 +13,7 @@ This version adds:
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
 - Admin console for registered users, problem publishing, study plans, and mock interview assignments
-- Person-led mock interview requests, registered interviewer workspaces, availability, Google Meet assignment, and feedback scorecards; AI mode is coming soon
+- Separate interviewer application and admin approval flow, interviewer workspaces, availability, Google Meet assignment, and feedback scorecards; AI mode is coming soon
 - SEO metadata, structured data, sitemap, and crawler instructions for `https://dsasprint.in/`
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
@@ -94,6 +94,12 @@ To enable registered interviewer accounts, availability slots, assignments, and 
 
 ```txt
 database/add_interviewer_portal.sql
+```
+
+If `database/add_interviewer_portal.sql` was already applied before adding the public interviewer application flow, also run:
+
+```txt
+database/upgrade_interviewer_applications.sql
 ```
 
 ## 2. Configure The App
@@ -273,7 +279,7 @@ For production deployment:
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
 Practice activity records power the streak and weekly analytics dashboard. Password reset tokens are hashed, single-use, and expire after 30 minutes.
-Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. To onboard an interviewer, ask them to register normally, then enter that same account email in **Admin Console > Onboard Interviewer**. The interviewer receives an Interviewer Workspace after their next sign-in or refresh, can publish availability, accept assigned requests, and share a structured scorecard with the learner. Admins assign a Google Meet URL to person-led requests. Automatic Meet generation requires a future Google Calendar API integration.
+Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Interviewers use the **Apply as Interviewer** link on sign-in to create a pending account and profile. Admin reviews the application in **Admin Console > Interviewer Applications** and selects **Approve**; only then can the interviewer sign in to their workspace, publish availability, accept assigned requests, and share a structured scorecard with the learner. Admins assign a Google Meet URL to person-led requests. Automatic Meet generation requires a future Google Calendar API integration.
 
 
 ## CORS Setup
@@ -296,6 +302,7 @@ After changing `.env`, restart backend.
 
 ```txt
 POST /api/auth/signup
+POST /api/auth/interviewer-signup
 POST /api/auth/login
 POST /api/auth/forgot-password
 POST /api/auth/reset-password
@@ -321,7 +328,6 @@ POST /api/admin/study-plans
 GET  /api/admin/mock-interviews
 PATCH /api/admin/mock-interviews/:id
 GET  /api/admin/interviewers
-POST /api/admin/interviewers
 PATCH /api/admin/interviewers/:id/status
 GET  /api/interviewer/dashboard
 PUT  /api/interviewer/profile

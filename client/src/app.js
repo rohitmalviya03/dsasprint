@@ -221,12 +221,15 @@ function layout(content) {
 
 function renderAuth() {
   const signingUp = authMode === 'signup';
+  const applyingAsInterviewer = authMode === 'interviewer';
   const forgotPassword = authMode === 'forgot';
   const resettingPassword = authMode === 'reset';
   const heading = resettingPassword
     ? 'Set a new password'
     : forgotPassword
       ? 'Reset your password'
+      : applyingAsInterviewer
+        ? 'Apply as an interviewer'
       : signingUp
         ? 'Create your account'
         : 'Sign in to your account';
@@ -234,6 +237,8 @@ function renderAuth() {
     ? 'Choose a secure new password for your account.'
     : forgotPassword
       ? 'We will email a password reset link to your registered email.'
+      : applyingAsInterviewer
+        ? 'Create an interviewer profile. Your workspace opens after admin approval.'
       : signingUp
         ? 'Set up your private learning workspace.'
         : 'Continue where you left off.';
@@ -256,28 +261,34 @@ function renderAuth() {
     <section class="auth-panel">
       <div class="wordmark compact"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="auth-box">
-        <p class="overline">${resettingPassword ? 'ACCOUNT RECOVERY' : forgotPassword ? 'PASSWORD HELP' : signingUp ? 'START PRACTICING' : 'WELCOME BACK'}</p>
+        <p class="overline">${resettingPassword ? 'ACCOUNT RECOVERY' : forgotPassword ? 'PASSWORD HELP' : applyingAsInterviewer ? 'INTERVIEWER APPLICATION' : signingUp ? 'START PRACTICING' : 'WELCOME BACK'}</p>
         <h2>${heading}</h2>
         <p class="auth-subtitle">${subtitle}</p>
         ${authNotice ? `<p class="auth-notice">${escapeHtml(authNotice)}</p>` : ''}
-        ${!forgotPassword && !resettingPassword ? `<div class="auth-tabs" role="tablist">
+        ${!forgotPassword && !resettingPassword && !applyingAsInterviewer ? `<div class="auth-tabs" role="tablist">
           <button class="${signingUp ? '' : 'active'}" id="loginTab" type="button">Sign in</button>
           <button class="${signingUp ? 'active' : ''}" id="signupTab" type="button">Create account</button>
         </div>` : ''}
         <form id="authForm" class="auth-form">
-          ${!resettingPassword && signingUp ? '<label>Full name<input id="name" name="name" autocomplete="name" placeholder="Rohit Sharma" required></label>' : ''}
+          ${!resettingPassword && (signingUp || applyingAsInterviewer) ? '<label>Full name<input id="name" name="name" autocomplete="name" placeholder="Rohit Sharma" required></label>' : ''}
           ${!resettingPassword ? '<label>Email address<input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>' : ''}
-          ${!resettingPassword && signingUp ? '<label>Contact number<input id="contactNumber" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 98765 43210" required></label>' : ''}
+          ${!resettingPassword && (signingUp || applyingAsInterviewer) ? '<label>Contact number<input id="contactNumber" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 98765 43210" required></label>' : ''}
           ${!forgotPassword ? `<label>${resettingPassword ? 'New password' : 'Password'}
-            <div class="password-field"><input id="password" name="password" type="password" autocomplete="${signingUp || resettingPassword ? 'new-password' : 'current-password'}" placeholder="${signingUp || resettingPassword ? 'Minimum 8 characters' : 'Enter password'}" required><button id="togglePassword" type="button">Show</button></div>
+            <div class="password-field"><input id="password" name="password" type="password" autocomplete="${signingUp || applyingAsInterviewer || resettingPassword ? 'new-password' : 'current-password'}" placeholder="${signingUp || applyingAsInterviewer || resettingPassword ? 'Minimum 8 characters' : 'Enter password'}" required><button id="togglePassword" type="button">Show</button></div>
           </label>` : ''}
           ${resettingPassword ? '<label>Confirm new password<input id="confirmPassword" name="confirm-password" type="password" autocomplete="new-password" placeholder="Re-enter new password" required></label>' : ''}
-          <button class="primary auth-submit" id="submitAuth" type="submit">${resettingPassword ? 'Reset password' : forgotPassword ? 'Send reset link' : signingUp ? 'Create account' : 'Sign in'}</button>
+          ${applyingAsInterviewer ? `<label>Professional headline<input id="applyHeadline" placeholder="Senior Backend Engineer"></label>
+            <div class="grid cols2"><label>Company<input id="applyCompany" placeholder="Company name"></label><label>Experience (years)<input id="applyExperience" type="number" min="0" max="70" value="2" required></label></div>
+            <label>Expertise<input id="applyExpertise" placeholder="DSA, React, Node.js, System Design" required></label>
+            <label>LinkedIn URL<input id="applyLinkedin" type="url" placeholder="https://linkedin.com/in/..."></label>
+            <label>About your interviewing experience<textarea id="applyBio" rows="4" minlength="20" maxlength="2000" required placeholder="Tell us what interview rounds and topics you can conduct."></textarea></label>` : ''}
+          <button class="primary auth-submit" id="submitAuth" type="submit">${resettingPassword ? 'Reset password' : forgotPassword ? 'Send reset link' : applyingAsInterviewer ? 'Submit application' : signingUp ? 'Create account' : 'Sign in'}</button>
         </form>
-        ${!signingUp && !forgotPassword && !resettingPassword ? '<button class="forgot-link" id="forgotPassword" type="button">Forgot password?</button>' : ''}
-        ${forgotPassword || resettingPassword ? '<button class="back-login" id="backLogin" type="button">Back to sign in</button>' : `
+        ${!signingUp && !applyingAsInterviewer && !forgotPassword && !resettingPassword ? '<button class="forgot-link" id="forgotPassword" type="button">Forgot password?</button>' : ''}
+        ${forgotPassword || resettingPassword || applyingAsInterviewer ? '<button class="back-login" id="backLogin" type="button">Back to sign in</button>' : `
           <div class="auth-divider"><span>or</span></div>
-          <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>`}
+          <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>
+          <button class="interviewer-link" id="interviewerSignup" type="button">Apply as Interviewer</button>`}
         <p class="auth-foot">Secure session protection enabled</p>
         <p class="help-link">Need help? <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
         <p class="auth-copyright">${COPYRIGHT_TEXT}</p>
@@ -287,11 +298,13 @@ function renderAuth() {
   if ($('loginTab')) $('loginTab').onclick = () => { authMode = 'login'; authNotice = ''; renderAuth(); };
   if ($('signupTab')) $('signupTab').onclick = () => { authMode = 'signup'; authNotice = ''; renderAuth(); };
   if ($('forgotPassword')) $('forgotPassword').onclick = () => { authMode = 'forgot'; authNotice = ''; renderAuth(); };
+  if ($('interviewerSignup')) $('interviewerSignup').onclick = () => { authMode = 'interviewer'; authNotice = ''; renderAuth(); };
   if ($('backLogin')) $('backLogin').onclick = () => { authMode = 'login'; resetToken = ''; authNotice = ''; renderAuth(); };
   $('authForm').onsubmit = (event) => {
     event.preventDefault();
     if (resettingPassword) return resetPassword();
     if (forgotPassword) return requestPasswordReset();
+    if (applyingAsInterviewer) return submitInterviewerApplication();
     return signingUp ? signup() : login();
   };
   if ($('togglePassword')) $('togglePassword').onclick = () => {
@@ -314,6 +327,8 @@ function setAuthBusy(busy) {
       ? 'Reset password'
       : authMode === 'forgot'
         ? 'Send reset link'
+        : authMode === 'interviewer'
+          ? 'Submit application'
         : authMode === 'signup'
           ? 'Create account'
           : 'Sign in';
@@ -347,6 +362,34 @@ async function signup() {
       })
     });
     await load();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function submitInterviewerApplication() {
+  setAuthBusy(true);
+  try {
+    const response = await api('/api/auth/interviewer-signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: $('name').value,
+        email: $('email').value,
+        contact_number: $('contactNumber').value,
+        password: $('password').value,
+        headline: $('applyHeadline').value || null,
+        company: $('applyCompany').value || null,
+        experience_years: Number($('applyExperience').value),
+        expertise: $('applyExpertise').value,
+        linkedin_url: $('applyLinkedin').value || null,
+        bio: $('applyBio').value
+      })
+    });
+    authMode = 'login';
+    authNotice = response.message;
+    renderAuth();
   } catch (error) {
     toast(error.message);
   } finally {
@@ -873,7 +916,8 @@ async function renderAdmin() {
 function drawAdmin(overview, users, addedProblems, plans, requests, interviewers) {
   $('content').innerHTML = `<div class="admin-metrics">
       <div class="metric"><span>Registered users</span><b>${Number(overview.users)}</b></div>
-      <div class="metric"><span>Interviewers</span><b>${Number(overview.interviewers)}</b></div>
+      <div class="metric"><span>Active interviewers</span><b>${Number(overview.interviewers)}</b></div>
+      <div class="metric"><span>Pending approvals</span><b>${Number(overview.pending_interviewers)}</b></div>
       <div class="metric"><span>Added problems</span><b>${Number(overview.added_problems)}</b></div>
       <div class="metric"><span>Study plans</span><b>${Number(overview.study_plans)}</b></div>
       <div class="metric"><span>Open interviews</span><b>${Number(overview.open_interviews)}</b></div>
@@ -901,21 +945,13 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
           <button class="primary" type="submit">Publish study plan</button>
         </form>
       </div>
-      <div class="card admin-form">
-        <h2>Onboard Interviewer</h2>
-        <p class="muted">The interviewer must first create a DSASprint account. Enter that email to activate their workspace.</p>
-        <form id="adminInterviewerForm" class="grid">
-          <label>Registered email<input id="interviewerEmail" type="email" required placeholder="interviewer@example.com"></label>
-          <div class="grid cols2"><label>Headline<input id="interviewerHeadline" placeholder="Senior Backend Engineer"></label><label>Company<input id="interviewerCompany" placeholder="Company name"></label></div>
-          <div class="grid cols2"><label>Experience (years)<input id="interviewerExperience" type="number" min="0" max="70" value="2" required></label><label>LinkedIn URL<input id="interviewerLinkedin" type="url"></label></div>
-          <label>Expertise<input id="interviewerExpertise" required placeholder="DSA, React, Node.js, System Design"></label>
-          <label>Bio<textarea id="interviewerBio" rows="3" placeholder="Interviewing experience and topics covered."></textarea></label>
-          <button class="primary" type="submit">Activate interviewer</button>
-        </form>
-      </div>
     </section>
     <div class="card admin-table"><h2>Registered Users</h2><div class="table-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Provider</th><th>Joined</th><th>Solved</th></tr></thead><tbody>${users.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.email)}</td><td>${escapeHtml(account.account_role)}</td><td>${escapeHtml(account.provider)}</td><td>${escapeHtml(dateValue(account.created_at))}</td><td>${Number(account.solved_problems || 0)}</td></tr>`).join('')}</tbody></table></div></div>
-    <div class="card admin-table"><h2>Interviewer Roster</h2>${interviewers.length ? `<div class="table-scroll"><table><thead><tr><th>Name</th><th>Expertise</th><th>Availability</th><th>Sessions</th><th>Status</th><th></th></tr></thead><tbody>${interviewers.map((interviewer) => `<tr><td>${escapeHtml(interviewer.name)}<br><span class="muted">${escapeHtml(interviewer.email)}</span></td><td>${escapeHtml(interviewer.expertise)}${interviewer.company ? `<br><span class="muted">${escapeHtml(interviewer.company)}</span>` : ''}</td><td>${Number(interviewer.available_slots || 0)} slot(s)${interviewer.next_available_at ? `<br><span class="muted">Next: ${escapeHtml(formatDateTime(interviewer.next_available_at))}</span>` : ''}</td><td>${Number(interviewer.active_assignments || 0)}</td><td>${interviewer.is_active ? 'Active' : 'Suspended'}</td><td><button class="secondary interviewer-status" data-id="${escapeHtml(interviewer.id)}" data-active="${interviewer.is_active ? 'true' : 'false'}">${interviewer.is_active ? 'Suspend' : 'Activate'}</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No interviewers onboarded yet.</p>'}</div>
+    <div class="card admin-table"><div class="section-head"><h2>Interviewer Applications</h2><span class="muted">Approve candidates before they can sign in</span></div>${interviewers.length ? `<div class="table-scroll"><table><thead><tr><th>Applicant</th><th>Expertise</th><th>Availability</th><th>Sessions</th><th>Status</th><th></th></tr></thead><tbody>${interviewers.map((interviewer) => {
+      const approvalStatus = interviewer.is_active ? 'Active' : interviewer.approved_at ? 'Suspended' : 'Pending';
+      const action = interviewer.is_active ? 'Suspend' : interviewer.approved_at ? 'Reactivate' : 'Approve';
+      return `<tr><td>${escapeHtml(interviewer.name)}<br><span class="muted">${escapeHtml(interviewer.email)}</span></td><td>${escapeHtml(interviewer.expertise)}${interviewer.company ? `<br><span class="muted">${escapeHtml(interviewer.company)}</span>` : ''}${interviewer.bio ? `<br><span class="muted">${escapeHtml(interviewer.bio)}</span>` : ''}</td><td>${Number(interviewer.available_slots || 0)} slot(s)${interviewer.next_available_at ? `<br><span class="muted">Next: ${escapeHtml(formatDateTime(interviewer.next_available_at))}</span>` : ''}</td><td>${Number(interviewer.active_assignments || 0)}</td><td>${escapeHtml(approvalStatus)}</td><td><button class="secondary interviewer-status" data-id="${escapeHtml(interviewer.id)}" data-active="${interviewer.is_active ? 'true' : 'false'}">${action}</button></td></tr>`;
+    }).join('')}</tbody></table></div>` : '<p class="muted">No interviewer applications submitted yet.</p>'}</div>
     <div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>
     <div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>
     <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Assign an interviewer and paste a Google Meet link while keeping the request as Requested. It becomes Scheduled when the interviewer accepts.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
@@ -930,7 +966,6 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
     </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
   $('adminProblemForm').onsubmit = submitAdminProblem;
   $('adminPlanForm').onsubmit = submitAdminPlan;
-  $('adminInterviewerForm').onsubmit = submitAdminInterviewer;
   document.querySelectorAll('.assignment').forEach((form) => {
     form.onsubmit = saveInterviewAssignment;
   });
@@ -1014,28 +1049,6 @@ async function saveInterviewAssignment(event) {
   }
 }
 
-async function submitAdminInterviewer(event) {
-  event.preventDefault();
-  try {
-    const result = await api('/api/admin/interviewers', {
-      method: 'POST',
-      body: JSON.stringify({
-        email: $('interviewerEmail').value,
-        headline: $('interviewerHeadline').value || null,
-        company: $('interviewerCompany').value || null,
-        experience_years: Number($('interviewerExperience').value),
-        expertise: $('interviewerExpertise').value,
-        linkedin_url: $('interviewerLinkedin').value || null,
-        bio: $('interviewerBio').value || null
-      })
-    });
-    toast(result.message);
-    renderAdmin();
-  } catch (error) {
-    toast(error.message);
-  }
-}
-
 async function setInterviewerStatus(button) {
   try {
     const activating = button.dataset.active !== 'true';
@@ -1043,7 +1056,7 @@ async function setInterviewerStatus(button) {
       method: 'PATCH',
       body: JSON.stringify({ is_active: activating })
     });
-    toast(activating ? 'Interviewer activated' : 'Interviewer suspended');
+    toast(activating ? 'Interviewer approved and activated' : 'Interviewer suspended');
     renderAdmin();
   } catch (error) {
     toast(error.message);

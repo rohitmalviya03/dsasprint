@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS interviewer_profiles (
   expertise VARCHAR(500) NOT NULL,
   linkedin_url TEXT NULL,
   bio TEXT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  approved_by CHAR(36) NOT NULL,
-  approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  approved_by CHAR(36) NULL,
+  approved_at TIMESTAMP NULL DEFAULT NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_interviewer_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_interviewer_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE RESTRICT

@@ -30,16 +30,6 @@ const planSchema = z.object({
   })).min(1).max(1000)
 });
 
-const interviewerSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
-  headline: z.string().trim().max(150).nullable().optional(),
-  company: z.string().trim().max(120).nullable().optional(),
-  experience_years: z.number().int().min(0).max(70),
-  expertise: z.string().trim().min(2).max(500),
-  linkedin_url: z.string().url().max(1000).nullable().optional().or(z.literal('')),
-  bio: z.string().trim().max(2000).nullable().optional()
-});
-
 const requestUpdateSchema = z.object({
   status: z.enum(['Requested', 'Scheduled', 'Completed', 'Cancelled']),
   interviewer_id: z.string().uuid().nullable().optional().or(z.literal('')),
@@ -48,9 +38,10 @@ const requestUpdateSchema = z.object({
 });
 
 router.get('/overview', asyncHandler(async (_req, res) => {
-  const [[users], [interviewers], [problems], [plans], [requests]] = await Promise.all([
+  const [[users], [interviewers], [pendingInterviewers], [problems], [plans], [requests]] = await Promise.all([
     pool.execute('SELECT COUNT(*) AS count FROM users'),
     pool.execute('SELECT COUNT(*) AS count FROM interviewer_profiles WHERE is_active = TRUE'),
+    pool.execute('SELECT COUNT(*) AS count FROM interviewer_profiles WHERE is_active = FALSE AND approved_at IS NULL'),
     pool.execute('SELECT COUNT(*) AS count FROM admin_problems WHERE is_published = TRUE'),
     pool.execute('SELECT COUNT(*) AS count FROM study_plans WHERE is_published = TRUE'),
     pool.execute("SELECT COUNT(*) AS count FROM mock_interviews WHERE status IN ('Requested', 'Scheduled')")
@@ -58,6 +49,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
   res.json({
     users: Number(users[0].count),
     interviewers: Number(interviewers[0].count),
+    pending_interviewers: Number(pendingInterviewers[0].count),
     added_problems: Number(problems[0].count),
     study_plans: Number(plans[0].count),
     open_interviews: Number(requests[0].count)
@@ -83,7 +75,7 @@ router.get('/interviewers', asyncHandler(async (_req, res) => {
     `SELECT users.id, users.name, users.email, interviewer_profiles.headline,
        interviewer_profiles.company, interviewer_profiles.experience_years,
        interviewer_profiles.expertise, interviewer_profiles.linkedin_url,
-       interviewer_profiles.bio, interviewer_profiles.is_active,
+       interviewer_profiles.bio, interviewer_profiles.is_active, interviewer_profiles.approved_at,
        (SELECT COUNT(*) FROM mock_interviews
         WHERE mock_interviews.interviewer_id = users.id
           AND mock_interviews.status IN ('Requested', 'Scheduled')) AS active_assignments,
@@ -102,37 +94,19 @@ router.get('/interviewers', asyncHandler(async (_req, res) => {
   res.json({ interviewers });
 }));
 
-router.post('/interviewers', asyncHandler(async (req, res) => {
-  const parsed = interviewerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: 'Enter a registered user email and complete the interviewer profile fields.' });
-  const profile = parsed.data;
-  const [users] = await pool.execute('SELECT id, name, account_role FROM users WHERE email = ? LIMIT 1', [profile.email]);
-  if (!users.length) return res.status(404).json({ message: 'This email has not registered on DSASprint yet. Ask the interviewer to create an account first.' });
-  if (users[0].account_role === 'admin') return res.status(409).json({ message: 'An admin account cannot be converted into an interviewer account.' });
-  await pool.execute("UPDATE users SET account_role = 'interviewer' WHERE id = ?", [users[0].id]);
-  await pool.execute(
-    `INSERT INTO interviewer_profiles
-      (user_id, headline, company, experience_years, expertise, linkedin_url, bio, is_active, approved_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?)
-     ON DUPLICATE KEY UPDATE headline = VALUES(headline), company = VALUES(company),
-       experience_years = VALUES(experience_years), expertise = VALUES(expertise),
-       linkedin_url = VALUES(linkedin_url), bio = VALUES(bio), is_active = TRUE,
-       approved_by = VALUES(approved_by), approved_at = CURRENT_TIMESTAMP`,
-    [users[0].id, profile.headline || null, profile.company || null, profile.experience_years, profile.expertise, profile.linkedin_url || null, profile.bio || null, req.user.id]
-  );
-  res.status(201).json({ message: `${users[0].name} is ready to use the interviewer workspace.` });
-}));
-
 router.patch('/interviewers/:id/status', asyncHandler(async (req, res) => {
   const id = z.string().uuid().safeParse(req.params.id);
   const parsed = z.object({ is_active: z.boolean() }).safeParse(req.body);
   if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid interviewer status.' });
   const [result] = await pool.execute(
-    'UPDATE interviewer_profiles SET is_active = ? WHERE user_id = ?',
-    [parsed.data.is_active, id.data]
+    `UPDATE interviewer_profiles
+     SET is_active = ?, approved_by = IF(?, ?, approved_by),
+       approved_at = IF(?, CURRENT_TIMESTAMP, approved_at)
+     WHERE user_id = ?`,
+    [parsed.data.is_active, parsed.data.is_active, req.user.id, parsed.data.is_active, id.data]
   );
   if (!result.affectedRows) return res.status(404).json({ message: 'Interviewer not found.' });
-  res.json({ message: parsed.data.is_active ? 'Interviewer activated.' : 'Interviewer suspended.' });
+  res.json({ message: parsed.data.is_active ? 'Interviewer approved and activated.' : 'Interviewer suspended.' });
 }));
 
 router.get('/problems', asyncHandler(async (_req, res) => {

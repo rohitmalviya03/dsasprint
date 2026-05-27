@@ -52,6 +52,15 @@ const signupSchema = z.object({
   contact_number: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,18}$/, 'Invalid contact number')
 });
 
+const interviewerSignupSchema = signupSchema.extend({
+  headline: z.string().trim().max(150).nullable().optional(),
+  company: z.string().trim().max(120).nullable().optional(),
+  experience_years: z.number().int().min(0).max(70),
+  expertise: z.string().trim().min(2).max(500),
+  linkedin_url: z.string().url().max(1000).nullable().optional().or(z.literal('')),
+  bio: z.string().trim().min(20).max(2000)
+});
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -81,6 +90,38 @@ router.post('/signup', asyncHandler(async (req, res) => {
   res.status(201).json({ user });
 }));
 
+router.post('/interviewer-signup', asyncHandler(async (req, res) => {
+  const parsed = interviewerSignupSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Complete all interviewer application fields with valid contact and profile details.' });
+  const value = parsed.data;
+  const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [value.email]);
+  if (existing.length) return res.status(409).json({ message: 'Email already registered. Use another email for an interviewer application.' });
+  const id = uuidv4();
+  const passwordHash = await bcrypt.hash(value.password, 12);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      `INSERT INTO users (id, name, email, contact_number, password_hash, provider, account_role)
+       VALUES (?, ?, ?, ?, ?, 'local', 'interviewer')`,
+      [id, value.name, value.email, value.contact_number, passwordHash]
+    );
+    await connection.execute(
+      `INSERT INTO interviewer_profiles
+        (user_id, headline, company, experience_years, expertise, linkedin_url, bio, is_active, approved_by, approved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, FALSE, NULL, NULL)`,
+      [id, value.headline || null, value.company || null, value.experience_years, value.expertise, value.linkedin_url || null, value.bio]
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  res.status(201).json({ message: 'Application submitted. You can sign in after an admin approves and activates your interviewer account.' });
+}));
+
 router.post('/login', asyncHandler(async (req, res) => {
   const schema = z.object({ email: z.string().email().transform(v => v.toLowerCase()), password: z.string().min(1) });
   const parsed = schema.safeParse(req.body);
@@ -89,6 +130,12 @@ router.post('/login', asyncHandler(async (req, res) => {
   if (!rows.length || !rows[0].password_hash) return res.status(401).json({ message: 'Invalid email or password' });
   const ok = await bcrypt.compare(parsed.data.password, rows[0].password_hash);
   if (!ok) return res.status(401).json({ message: 'Invalid email or password' });
+  if (rows[0].account_role === 'interviewer') {
+    const [profiles] = await pool.execute('SELECT is_active FROM interviewer_profiles WHERE user_id = ? LIMIT 1', [rows[0].id]);
+    if (!profiles[0]?.is_active) {
+      return res.status(403).json({ message: 'Your interviewer application is waiting for admin approval and activation.' });
+    }
+  }
   const user = publicUser(rows[0]);
   const token = signToken(user);
   setAuthCookie(res, token);
@@ -179,8 +226,18 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
 }));
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
-  const [rows] = await pool.execute('SELECT id, name, email, contact_number, avatar_url, provider, account_role, created_at FROM users WHERE id = ?', [req.user.id]);
+  const [rows] = await pool.execute(
+    `SELECT users.id, users.name, users.email, users.contact_number, users.avatar_url,
+       users.provider, users.account_role, users.created_at, interviewer_profiles.is_active AS interviewer_active
+     FROM users
+     LEFT JOIN interviewer_profiles ON interviewer_profiles.user_id = users.id
+     WHERE users.id = ?`,
+    [req.user.id]
+  );
   if (!rows.length) return res.status(404).json({ message: 'User not found' });
+  if (rows[0].account_role === 'interviewer' && !rows[0].interviewer_active) {
+    return res.status(403).json({ message: 'Your interviewer account is awaiting approval or currently inactive.' });
+  }
   res.json({ user: { ...publicUser(rows[0]), created_at: rows[0].created_at } });
 }));
 
