@@ -6,6 +6,7 @@ const SUPPORT_EMAIL = 'help.dsasprint@outlook.com';
 const COPYRIGHT_TEXT = `&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All rights reserved.`;
 let problems = [];
 let progress = {};
+let analytics = null;
 let user = null;
 let selectedId = null;
 let view = 'learn';
@@ -13,6 +14,7 @@ let progressStream = null;
 let dashboardFilter = 'all';
 let authNotice = '';
 let authMode = 'login';
+let resetToken = '';
 
 const $ = (id) => document.getElementById(id);
 const statusOptions = ['Not Attempted', 'Learning', 'Revision', 'Solved'];
@@ -117,8 +119,12 @@ function getProgress(id) {
 }
 
 async function refreshProgress() {
-  const data = await api('/api/progress');
-  progress = data.progress || {};
+  const [progressData, analyticsData] = await Promise.all([
+    api('/api/progress'),
+    api('/api/progress/analytics').catch(() => null)
+  ]);
+  progress = progressData.progress || {};
+  analytics = analyticsData;
   render();
 }
 
@@ -140,6 +146,7 @@ async function saveProgress(id, patch) {
       body: JSON.stringify(patch)
     });
     toast('Progress saved');
+    await refreshProgress().catch(() => {});
   } catch (error) {
     toast(error.message);
     await refreshProgress().catch(() => {});
@@ -150,20 +157,24 @@ async function load() {
   localStorage.removeItem('token');
   problems = await (await fetch('/assets/problems.json')).json();
   const params = new URLSearchParams(location.search);
+  resetToken = params.get('reset_token') || '';
+  if (resetToken) authMode = 'reset';
   authNotice = params.get('auth') === 'google_unavailable'
     ? 'Google sign-in is not configured yet. Add Google OAuth credentials in the server environment and restart the API.'
     : params.get('auth') === 'failed'
       ? 'Google sign-in did not complete. Please try again.'
       : '';
-  if (params.has('auth')) history.replaceState({}, '', location.pathname);
+  if (params.has('auth') || resetToken) history.replaceState({}, '', location.pathname);
   try {
     const session = await api('/api/auth/me');
     user = session.user;
     try {
       const data = await api('/api/progress');
       progress = data.progress || {};
+      analytics = await api('/api/progress/analytics').catch(() => null);
     } catch (error) {
       progress = {};
+      analytics = null;
       toast(`Progress unavailable: ${error.message}`);
     }
     connectProgressStream();
@@ -180,6 +191,22 @@ function layout(content) {
 
 function renderAuth() {
   const signingUp = authMode === 'signup';
+  const forgotPassword = authMode === 'forgot';
+  const resettingPassword = authMode === 'reset';
+  const heading = resettingPassword
+    ? 'Set a new password'
+    : forgotPassword
+      ? 'Reset your password'
+      : signingUp
+        ? 'Create your account'
+        : 'Sign in to your account';
+  const subtitle = resettingPassword
+    ? 'Choose a secure new password for your account.'
+    : forgotPassword
+      ? 'We will email a password reset link to your registered email.'
+      : signingUp
+        ? 'Set up your private learning workspace.'
+        : 'Continue where you left off.';
   layout(`<main class="auth-page">
     <section class="auth-showcase">
       <div class="wordmark inverse"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
@@ -199,52 +226,67 @@ function renderAuth() {
     <section class="auth-panel">
       <div class="wordmark compact"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="auth-box">
-        <p class="overline">${signingUp ? 'START PRACTICING' : 'WELCOME BACK'}</p>
-        <h2>${signingUp ? 'Create your account' : 'Sign in to your account'}</h2>
-        <p class="auth-subtitle">${signingUp ? 'Set up your private learning workspace.' : 'Continue where you left off.'}</p>
+        <p class="overline">${resettingPassword ? 'ACCOUNT RECOVERY' : forgotPassword ? 'PASSWORD HELP' : signingUp ? 'START PRACTICING' : 'WELCOME BACK'}</p>
+        <h2>${heading}</h2>
+        <p class="auth-subtitle">${subtitle}</p>
         ${authNotice ? `<p class="auth-notice">${escapeHtml(authNotice)}</p>` : ''}
-        <div class="auth-tabs" role="tablist">
+        ${!forgotPassword && !resettingPassword ? `<div class="auth-tabs" role="tablist">
           <button class="${signingUp ? '' : 'active'}" id="loginTab" type="button">Sign in</button>
           <button class="${signingUp ? 'active' : ''}" id="signupTab" type="button">Create account</button>
-        </div>
+        </div>` : ''}
         <form id="authForm" class="auth-form">
-          ${signingUp ? '<label>Full name<input id="name" name="name" autocomplete="name" placeholder="Rohit Sharma" required></label>' : ''}
-          <label>Email address<input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
-          ${signingUp ? '<label>Contact number<input id="contactNumber" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 98765 43210" required></label>' : ''}
-          <label>Password
-            <div class="password-field"><input id="password" name="password" type="password" autocomplete="${signingUp ? 'new-password' : 'current-password'}" placeholder="${signingUp ? 'Minimum 8 characters' : 'Enter password'}" required><button id="togglePassword" type="button">Show</button></div>
-          </label>
-          <button class="primary auth-submit" id="submitAuth" type="submit">${signingUp ? 'Create account' : 'Sign in'}</button>
+          ${!resettingPassword && signingUp ? '<label>Full name<input id="name" name="name" autocomplete="name" placeholder="Rohit Sharma" required></label>' : ''}
+          ${!resettingPassword ? '<label>Email address<input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>' : ''}
+          ${!resettingPassword && signingUp ? '<label>Contact number<input id="contactNumber" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 98765 43210" required></label>' : ''}
+          ${!forgotPassword ? `<label>${resettingPassword ? 'New password' : 'Password'}
+            <div class="password-field"><input id="password" name="password" type="password" autocomplete="${signingUp || resettingPassword ? 'new-password' : 'current-password'}" placeholder="${signingUp || resettingPassword ? 'Minimum 8 characters' : 'Enter password'}" required><button id="togglePassword" type="button">Show</button></div>
+          </label>` : ''}
+          ${resettingPassword ? '<label>Confirm new password<input id="confirmPassword" name="confirm-password" type="password" autocomplete="new-password" placeholder="Re-enter new password" required></label>' : ''}
+          <button class="primary auth-submit" id="submitAuth" type="submit">${resettingPassword ? 'Reset password' : forgotPassword ? 'Send reset link' : signingUp ? 'Create account' : 'Sign in'}</button>
         </form>
-        <div class="auth-divider"><span>or</span></div>
-        <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>
+        ${!signingUp && !forgotPassword && !resettingPassword ? '<button class="forgot-link" id="forgotPassword" type="button">Forgot password?</button>' : ''}
+        ${forgotPassword || resettingPassword ? '<button class="back-login" id="backLogin" type="button">Back to sign in</button>' : `
+          <div class="auth-divider"><span>or</span></div>
+          <button class="google-button" id="googleBtn" type="button"><span class="google-letter">G</span>Continue with Google</button>`}
         <p class="auth-foot">Secure session protection enabled</p>
         <p class="help-link">Need help? <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
         <p class="auth-copyright">${COPYRIGHT_TEXT}</p>
       </div>
     </section>
   </main>`);
-  $('loginTab').onclick = () => { authMode = 'login'; authNotice = ''; renderAuth(); };
-  $('signupTab').onclick = () => { authMode = 'signup'; authNotice = ''; renderAuth(); };
+  if ($('loginTab')) $('loginTab').onclick = () => { authMode = 'login'; authNotice = ''; renderAuth(); };
+  if ($('signupTab')) $('signupTab').onclick = () => { authMode = 'signup'; authNotice = ''; renderAuth(); };
+  if ($('forgotPassword')) $('forgotPassword').onclick = () => { authMode = 'forgot'; authNotice = ''; renderAuth(); };
+  if ($('backLogin')) $('backLogin').onclick = () => { authMode = 'login'; resetToken = ''; authNotice = ''; renderAuth(); };
   $('authForm').onsubmit = (event) => {
     event.preventDefault();
+    if (resettingPassword) return resetPassword();
+    if (forgotPassword) return requestPasswordReset();
     return signingUp ? signup() : login();
   };
-  $('togglePassword').onclick = () => {
+  if ($('togglePassword')) $('togglePassword').onclick = () => {
     const password = $('password');
     const hidden = password.type === 'password';
     password.type = hidden ? 'text' : 'password';
     $('togglePassword').textContent = hidden ? 'Hide' : 'Show';
   };
-  $('googleBtn').onclick = () => { location.href = `${API}/api/auth/google`; };
+  if ($('googleBtn')) $('googleBtn').onclick = () => { location.href = `${API}/api/auth/google`; };
 }
 
 function setAuthBusy(busy) {
   const button = $('submitAuth');
   if (!button) return;
   button.disabled = busy;
-  $('googleBtn').disabled = busy;
-  button.textContent = busy ? 'Please wait...' : (authMode === 'signup' ? 'Create account' : 'Sign in');
+  if ($('googleBtn')) $('googleBtn').disabled = busy;
+  button.textContent = busy
+    ? 'Please wait...'
+    : authMode === 'reset'
+      ? 'Reset password'
+      : authMode === 'forgot'
+        ? 'Send reset link'
+        : authMode === 'signup'
+          ? 'Create account'
+          : 'Sign in';
 }
 
 async function login() {
@@ -275,6 +317,47 @@ async function signup() {
       })
     });
     await load();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function requestPasswordReset() {
+  setAuthBusy(true);
+  try {
+    const response = await api('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: $('email').value })
+    });
+    authNotice = response.message;
+    if (response.reset_url) {
+      authNotice = `${response.message} Development reset link: ${response.reset_url}`;
+    }
+    renderAuth();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function resetPassword() {
+  if ($('password').value !== $('confirmPassword').value) {
+    toast('Passwords do not match.');
+    return;
+  }
+  setAuthBusy(true);
+  try {
+    const response = await api('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token: resetToken, password: $('password').value })
+    });
+    resetToken = '';
+    authMode = 'login';
+    authNotice = response.message;
+    renderAuth();
   } catch (error) {
     toast(error.message);
   } finally {
@@ -321,6 +404,7 @@ function render() {
         <button class="card stat-filter ${dashboardFilter === 'Revision' ? 'active' : ''}" data-filter="Revision"><span class="stat">${revision}</span><span class="muted">Revision</span></button>
         <button class="card stat-filter ${dashboardFilter === 'due' ? 'active' : ''}" data-filter="due"><span class="stat">${due}</span><span class="muted">Due Today</span></button>
       </div>
+      ${view === 'learn' ? '<section id="analytics" class="dashboard-analytics"></section>' : ''}
       <section id="content"></section>
       <footer class="app-footer"><span>${COPYRIGHT_TEXT}</span><a href="mailto:${SUPPORT_EMAIL}">Help Center: ${SUPPORT_EMAIL}</a></footer>
     </main>
@@ -341,11 +425,65 @@ function render() {
     progressStream?.close();
     location.reload();
   };
-  if (view === 'learn') renderLearn();
+  if (view === 'learn') {
+    renderAnalytics();
+    renderLearn();
+  }
   if (view === 'plan') renderPlan();
   if (view === 'mock') renderMockInterviews();
   if (view === 'feedback') renderFeedback();
   if (view === 'settings') renderSettings();
+}
+
+function renderAnalytics() {
+  const target = $('analytics');
+  if (!target) return;
+  const data = analytics || {
+    current_streak: 0,
+    active_days_this_week: 0,
+    practiced_this_week: 0,
+    total_practice_days: 0,
+    activity: []
+  };
+  const activityByDate = new Map((data.activity || []).map((entry) => [dateValue(entry.activity_date), Number(entry.problems_practiced || 0)]));
+  const recentDays = Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (6 - offset));
+    const key = day.toLocaleDateString('en-CA');
+    return {
+      label: day.toLocaleDateString(undefined, { weekday: 'short' }),
+      count: activityByDate.get(key) || 0
+    };
+  });
+  const maxActivity = Math.max(1, ...recentDays.map((day) => day.count));
+  const topicStats = [...new Set(problems.map((problem) => problemTopic(problem)))].map((topic) => {
+    const topicProblems = problems.filter((problem) => problemTopic(problem) === topic);
+    const attempted = topicProblems.filter((problem) => getProgress(problemId(problem)).status !== 'Not Attempted').length;
+    const solved = topicProblems.filter((problem) => getProgress(problemId(problem)).status === 'Solved').length;
+    return { topic, attempted, solved };
+  }).filter((topic) => topic.attempted > 0)
+    .sort((left, right) => (left.solved / left.attempted) - (right.solved / right.attempted))
+    .slice(0, 3);
+  const weakTopics = topicStats.length
+    ? topicStats.map((topic) => `<div class="topic-progress"><span>${escapeHtml(topic.topic)}</span><b>${topic.solved}/${topic.attempted} solved</b><progress value="${topic.solved}" max="${topic.attempted}"></progress></div>`).join('')
+    : '<p class="muted">Start a problem to reveal your focus topics.</p>';
+
+  target.innerHTML = `<div class="analytics-metrics">
+      <div class="metric streak"><span>Current streak</span><b>${Number(data.current_streak || 0)} days</b></div>
+      <div class="metric"><span>Active days this week</span><b>${Number(data.active_days_this_week || 0)} / 7</b></div>
+      <div class="metric"><span>Problems practiced this week</span><b>${Number(data.practiced_this_week || 0)}</b></div>
+      <div class="metric"><span>Total practice days</span><b>${Number(data.total_practice_days || 0)}</b></div>
+    </div>
+    <div class="analytics-detail">
+      <div class="card activity-card">
+        <div class="section-head"><h2>Last 7 days</h2><span class="muted">Problems practiced</span></div>
+        <div class="activity-chart">${recentDays.map((day) => `<div class="activity-day"><span>${day.count || ''}</span><i style="height:${Math.max(day.count ? 12 : 4, Math.round((day.count / maxActivity) * 78))}px"></i><small>${day.label}</small></div>`).join('')}</div>
+      </div>
+      <div class="card focus-card">
+        <div class="section-head"><h2>Focus next</h2><span class="muted">Weak topics</span></div>
+        ${weakTopics}
+      </div>
+    </div>`;
 }
 
 function renderLearn() {

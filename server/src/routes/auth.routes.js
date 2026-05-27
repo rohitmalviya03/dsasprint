@@ -1,5 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
+import nodemailer from 'nodemailer';
 import passport from 'passport';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
@@ -20,6 +22,27 @@ function googleAuthAvailable(_req, res, next) {
   const ready = id && secret && !id.includes('your_') && !secret.includes('your_');
   if (!ready) return res.redirect(`${clientUrl()}/?auth=google_unavailable`);
   return next();
+}
+
+function resetLink(token) {
+  return `${clientUrl()}/?reset_token=${encodeURIComponent(token)}`;
+}
+
+function resetTokenHash(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function mailTransport() {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) return null;
+  return nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass }
+  });
 }
 
 const signupSchema = z.object({
@@ -56,6 +79,89 @@ router.post('/login', asyncHandler(async (req, res) => {
   const token = signToken(user);
   setAuthCookie(res, token);
   res.json({ user });
+}));
+
+router.post('/forgot-password', asyncHandler(async (req, res) => {
+  const parsed = z.object({
+    email: z.string().email().transform((value) => value.toLowerCase())
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Enter a valid email address.' });
+
+  const response = { message: 'If that email has a local account, a reset link has been sent.' };
+  const [users] = await pool.execute(
+    'SELECT id, email, name, password_hash FROM users WHERE email = ? LIMIT 1',
+    [parsed.data.email]
+  );
+  if (!users.length || !users[0].password_hash) return res.json(response);
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = resetTokenHash(token);
+  const expiresAt = new Date(Date.now() + (30 * 60 * 1000));
+  await pool.execute('DELETE FROM password_reset_tokens WHERE user_id = ? OR expires_at < CURRENT_TIMESTAMP', [users[0].id]);
+  await pool.execute(
+    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [users[0].id, tokenHash, expiresAt]
+  );
+
+  const link = resetLink(token);
+  const transport = mailTransport();
+  if (transport) {
+    try {
+      await transport.sendMail({
+        from: process.env.MAIL_FROM || process.env.SMTP_USER,
+        to: users[0].email,
+        subject: 'Reset your DSASprint password',
+        text: `Hi ${users[0].name}, reset your DSASprint password using this link within 30 minutes: ${link}\n\nIf you did not request this, you can ignore this email.`
+      });
+    } catch (error) {
+      console.error('Unable to send password reset email:', error.message);
+    }
+  } else if (process.env.NODE_ENV !== 'production') {
+    return res.json({ ...response, reset_url: link });
+  } else {
+    console.error('Password reset requested but SMTP is not configured.');
+  }
+
+  res.json(response);
+}));
+
+router.post('/reset-password', asyncHandler(async (req, res) => {
+  const parsed = z.object({
+    token: z.string().min(32).max(200),
+    password: z.string().min(8).max(100)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Use a valid reset link and a password of at least 8 characters.' });
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [tokens] = await connection.execute(
+      `SELECT password_reset_tokens.id, password_reset_tokens.user_id
+       FROM password_reset_tokens
+       INNER JOIN users ON users.id = password_reset_tokens.user_id
+       WHERE password_reset_tokens.token_hash = ?
+         AND password_reset_tokens.used_at IS NULL
+         AND password_reset_tokens.expires_at > CURRENT_TIMESTAMP
+         AND users.password_hash IS NOT NULL
+       LIMIT 1
+       FOR UPDATE`,
+      [resetTokenHash(parsed.data.token)]
+    );
+    if (!tokens.length) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'This password reset link is invalid or has expired.' });
+    }
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+    await connection.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, tokens[0].user_id]);
+    await connection.execute('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [tokens[0].id]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  res.json({ message: 'Password reset successfully. Sign in with your new password.' });
 }));
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {

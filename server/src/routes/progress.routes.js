@@ -47,6 +47,52 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ progress });
 }));
 
+router.get('/analytics', asyncHandler(async (req, res) => {
+  const [activityRows] = await pool.execute(
+    `SELECT DATE_FORMAT(activity_date, '%Y-%m-%d') AS activity_date,
+       COUNT(*) AS problems_practiced,
+       SUM(practice_count) AS interactions
+     FROM practice_activity
+     WHERE user_id = ? AND activity_date >= DATE_SUB(CURRENT_DATE, INTERVAL 27 DAY)
+     GROUP BY activity_date
+     ORDER BY activity_date ASC`,
+    [req.user.id]
+  );
+  const [streakRows] = await pool.execute(
+    `SELECT DATE_FORMAT(activity_date, '%Y-%m-%d') AS activity_date
+     FROM practice_activity
+     WHERE user_id = ?
+     GROUP BY activity_date
+     ORDER BY activity_date DESC`,
+    [req.user.id]
+  );
+
+  const activeDates = new Set(streakRows.map((row) => row.activity_date));
+  const formatDate = (date) => date.toISOString().slice(0, 10);
+  let cursor = new Date();
+  cursor.setUTCHours(0, 0, 0, 0);
+  if (!activeDates.has(formatDate(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  let currentStreak = 0;
+  while (activeDates.has(formatDate(cursor))) {
+    currentStreak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  const weekStart = new Date();
+  weekStart.setUTCHours(0, 0, 0, 0);
+  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const weekStartValue = formatDate(weekStart);
+  const weekRows = activityRows.filter((row) => row.activity_date >= weekStartValue);
+
+  res.json({
+    current_streak: currentStreak,
+    active_days_this_week: weekRows.length,
+    practiced_this_week: weekRows.reduce((total, row) => total + Number(row.problems_practiced), 0),
+    total_practice_days: streakRows.length,
+    activity: activityRows
+  });
+}));
+
 router.put('/:problemId', asyncHandler(async (req, res) => {
   const schema = z.object({
     status: z.enum(['Not Attempted', 'Learning', 'Revision', 'Solved']).optional(),
@@ -93,6 +139,16 @@ router.put('/:problemId', asyncHandler(async (req, res) => {
     current.revision_count !== undefined,
     current.revision_due_on !== undefined
   ]);
+  if (current.last_visited || current.status !== undefined) {
+    await pool.execute(
+      `INSERT INTO practice_activity (user_id, problem_id, activity_date, practice_count)
+       VALUES (?, ?, CURRENT_DATE, 1)
+       ON DUPLICATE KEY UPDATE
+         practice_count = practice_count + 1,
+         last_practiced_at = CURRENT_TIMESTAMP`,
+      [req.user.id, req.params.problemId]
+    );
+  }
   notifyProgressChanged(req.user.id);
   res.json({ message: 'Progress saved' });
 }));

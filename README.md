@@ -6,7 +6,9 @@ This version adds:
 - MySQL database storage
 - User-wise progress/status/notes
 - Revision due-date planning and due-today dashboard
+- Dashboard analytics with streaks, weekly activity, and weak-topic guidance
 - Live progress refresh across open sessions
+- Forgot-password recovery using expiring emailed reset links
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
@@ -65,6 +67,12 @@ To add contact numbers to existing user accounts, run:
 
 ```txt
 database/add_contact_number.sql
+```
+
+To enable dashboard streak analytics and password recovery for an existing database, run this before deploying the related application update:
+
+```txt
+database/add_analytics_and_password_reset.sql
 ```
 
 The Mock Interviews screen is currently a coming-soon preview, so no production database migration is required yet. When scheduling is launched, enable its table with:
@@ -169,6 +177,12 @@ DB_NAME=dsa_learning_platform
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=https://your-domain.example/api/auth/google/callback
+SMTP_HOST=your_smtp_host
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+MAIL_FROM=DSASprint <help.dsasprint@outlook.com>
 ```
 
 Do not add `VITE_API_URL` in Hostinger when the frontend and API are deployed together on the same domain. Production builds always call the same deployed origin for `/api/...`.
@@ -235,11 +249,14 @@ For production deployment:
 
 - `users`
 - `problem_progress`
+- `practice_activity`
+- `password_reset_tokens`
 - `feedback`
 - `mock_interviews`
 
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
+Practice activity records power the streak and weekly analytics dashboard. Password reset tokens are hashed, single-use, and expire after 30 minutes.
 
 
 ## CORS Setup
@@ -263,10 +280,13 @@ After changing `.env`, restart backend.
 ```txt
 POST /api/auth/signup
 POST /api/auth/login
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
 GET  /api/auth/google
 GET  /api/auth/me
 POST /api/auth/logout
 GET  /api/progress
+GET  /api/progress/analytics
 GET  /api/progress/events
 PUT  /api/progress/:problemId
 POST /api/progress/bulk-import
