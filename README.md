@@ -12,7 +12,8 @@ This version adds:
 - Account-linked product feedback submissions
 - Contact number capture for locally registered accounts
 - Guided problem breakdowns with core patterns, solving methods, key points, and common mistakes
-- Mock interview preview for DSA or development practice with AI/person modes (coming soon)
+- Admin console for registered users, problem publishing, study plans, and mock interview assignments
+- Person-led mock interview requests with assigned Google Meet links; AI interview mode is coming soon
 - SEO metadata, structured data, sitemap, and crawler instructions for `https://dsasprint.in/`
 - Export JSON, Import JSON, Reset Stats
 - Study Plan → Learn-section problem focus
@@ -75,17 +76,19 @@ To enable dashboard streak analytics and password recovery for an existing datab
 database/add_analytics_and_password_reset.sql
 ```
 
-The Mock Interviews screen is currently a coming-soon preview, so no production database migration is required yet. When scheduling is launched, enable its table with:
+To enable the admin console, published problems, study plans, and person-led mock interview requests, run:
 
 ```txt
-database/add_mock_interviews.sql
+database/add_admin_panel.sql
 ```
 
-If mock interview scheduling was already enabled before DSA/development tracks and AI/person modes were added, run:
+If you already ran `database/add_mock_interviews.sql`, also run:
 
 ```txt
-database/upgrade_mock_interview_options.sql
+database/upgrade_existing_mock_interviews_for_admin.sql
 ```
+
+If your existing `mock_interviews` table was created before the DSA/development and AI/person fields were added, run `database/upgrade_mock_interview_options.sql` before the admin upgrade script.
 
 ## 2. Configure The App
 
@@ -183,6 +186,7 @@ SMTP_SECURE=false
 SMTP_USER=your_smtp_username
 SMTP_PASS=your_smtp_password
 MAIL_FROM=DSASprint <help.dsasprint@outlook.com>
+ADMIN_EMAILS=your_admin_login_email@dsasprint.in
 ```
 
 Do not add `VITE_API_URL` in Hostinger when the frontend and API are deployed together on the same domain. Production builds always call the same deployed origin for `/api/...`.
@@ -253,10 +257,14 @@ For production deployment:
 - `password_reset_tokens`
 - `feedback`
 - `mock_interviews`
+- `admin_problems`
+- `study_plans`
+- `study_plan_items`
 
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
 Practice activity records power the streak and weekly analytics dashboard. Password reset tokens are hashed, single-use, and expire after 30 minutes.
+Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Admins can assign an interviewer and Google Meet URL to person-led requests. Automatic Meet generation requires a future Google Calendar API integration.
 
 
 ## CORS Setup
@@ -292,7 +300,15 @@ PUT  /api/progress/:problemId
 POST /api/progress/bulk-import
 DELETE /api/progress/reset
 POST /api/feedback
-GET  /api/mock-interviews (preview state)
-POST /api/mock-interviews (disabled until launch)
-PATCH /api/mock-interviews/:id/cancel (disabled until launch)
+GET  /api/content/problems
+GET  /api/content/study-plans
+GET  /api/mock-interviews
+POST /api/mock-interviews
+PATCH /api/mock-interviews/:id/cancel
+GET  /api/admin/overview
+GET  /api/admin/users
+POST /api/admin/problems
+POST /api/admin/study-plans
+GET  /api/admin/mock-interviews
+PATCH /api/admin/mock-interviews/:id
 ```

@@ -6,7 +6,7 @@ import passport from 'passport';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { requireAuth } from '../middleware/auth.js';
+import { isConfiguredAdmin, requireAuth } from '../middleware/auth.js';
 import { signToken, setAuthCookie } from '../auth/jwt.js';
 import { asyncHandler } from '../utils/async-handler.js';
 
@@ -52,6 +52,18 @@ const signupSchema = z.object({
   contact_number: z.string().trim().regex(/^\+?[0-9][0-9\s-]{7,18}$/, 'Invalid contact number')
 });
 
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    contact_number: user.contact_number,
+    provider: user.provider,
+    avatar_url: user.avatar_url,
+    is_admin: isConfiguredAdmin(user.email, user.account_role)
+  };
+}
+
 router.post('/signup', asyncHandler(async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid signup data', errors: parsed.error.flatten() });
@@ -61,7 +73,7 @@ router.post('/signup', asyncHandler(async (req, res) => {
   const id = uuidv4();
   const passwordHash = await bcrypt.hash(password, 12);
   await pool.execute('INSERT INTO users (id, name, email, contact_number, password_hash, provider) VALUES (?, ?, ?, ?, ?, "local")', [id, name, email, contactNumber, passwordHash]);
-  const user = { id, name, email, contact_number: contactNumber, provider: 'local', avatar_url: null };
+  const user = publicUser({ id, name, email, contact_number: contactNumber, provider: 'local', avatar_url: null, account_role: 'user' });
   const token = signToken(user);
   setAuthCookie(res, token);
   res.status(201).json({ user });
@@ -75,7 +87,7 @@ router.post('/login', asyncHandler(async (req, res) => {
   if (!rows.length || !rows[0].password_hash) return res.status(401).json({ message: 'Invalid email or password' });
   const ok = await bcrypt.compare(parsed.data.password, rows[0].password_hash);
   if (!ok) return res.status(401).json({ message: 'Invalid email or password' });
-  const user = { id: rows[0].id, name: rows[0].name, email: rows[0].email, contact_number: rows[0].contact_number, provider: rows[0].provider, avatar_url: rows[0].avatar_url };
+  const user = publicUser(rows[0]);
   const token = signToken(user);
   setAuthCookie(res, token);
   res.json({ user });
@@ -165,9 +177,9 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
 }));
 
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
-  const [rows] = await pool.execute('SELECT id, name, email, contact_number, avatar_url, provider, created_at FROM users WHERE id = ?', [req.user.id]);
+  const [rows] = await pool.execute('SELECT id, name, email, contact_number, avatar_url, provider, account_role, created_at FROM users WHERE id = ?', [req.user.id]);
   if (!rows.length) return res.status(404).json({ message: 'User not found' });
-  res.json({ user: rows[0] });
+  res.json({ user: { ...publicUser(rows[0]), created_at: rows[0].created_at } });
 }));
 
 router.post('/logout', (_req, res) => {

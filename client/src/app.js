@@ -7,6 +7,8 @@ const COPYRIGHT_TEXT = `&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All ri
 let problems = [];
 let progress = {};
 let analytics = null;
+let studyPlans = [];
+let interviewRequests = [];
 let user = null;
 let selectedId = null;
 let view = 'learn';
@@ -155,7 +157,9 @@ async function saveProgress(id, patch) {
 
 async function load() {
   localStorage.removeItem('token');
-  problems = await (await fetch('/assets/problems.json')).json();
+  const builtInProblems = await (await fetch('/assets/problems.json')).json();
+  const customProblems = await api('/api/content/problems').then((data) => data.problems || []).catch(() => []);
+  problems = [...builtInProblems, ...customProblems];
   const params = new URLSearchParams(location.search);
   resetToken = params.get('reset_token') || '';
   if (resetToken) authMode = 'reset';
@@ -172,9 +176,11 @@ async function load() {
       const data = await api('/api/progress');
       progress = data.progress || {};
       analytics = await api('/api/progress/analytics').catch(() => null);
+      studyPlans = await api('/api/content/study-plans').then((result) => result.plans || []).catch(() => []);
     } catch (error) {
       progress = {};
       analytics = null;
+      studyPlans = [];
       toast(`Progress unavailable: ${error.message}`);
     }
     connectProgressStream();
@@ -214,7 +220,7 @@ function renderAuth() {
         <p class="overline">DSA PREPARATION TRACKER</p>
         <h1>Prepare for DSA interviews.</h1>
         <p class="showcase-subtitle">Track coding problems, revise core patterns, and build clear interview explanations.</p>
-        <p class="showcase-upcoming"><span>Coming soon</span> Mock interview practice with AI and person modes.</p>
+        <p class="showcase-upcoming"><span>New</span> Request person-led mock interviews. AI mode is coming soon.</p>
       </div>
       <div class="session-preview" aria-hidden="true">
         <div class="preview-head"><span>Today's focus</span><span class="preview-date">3 due</span></div>
@@ -378,6 +384,8 @@ function render() {
       ? 'Revision Plan'
       : view === 'mock'
         ? 'Mock Interviews'
+      : view === 'admin'
+        ? 'Admin Console'
       : view === 'feedback'
         ? 'Feedback'
         : 'Settings';
@@ -389,21 +397,22 @@ function render() {
       <div class="nav">
         <button data-v="learn">Learn</button>
         <button data-v="plan">Revision Plan</button>
-        <button data-v="mock" class="nav-feature">Mock Interviews <span>Coming Soon</span></button>
+        <button data-v="mock" class="nav-feature">Mock Interviews <span>Person beta</span></button>
         <button data-v="feedback">Feedback</button>
         <button data-v="settings">Settings</button>
+        ${user.is_admin ? '<button data-v="admin">Admin Console</button>' : ''}
         <button id="logout">Logout</button>
       </div>
     </aside>
     <main class="main">
       <div class="topbar"><h1>${title}</h1><div class="sync-status"><span></span>Live sync</div></div>
-      <div class="grid cols5 dashboard-filters">
+      ${view !== 'admin' ? `<div class="grid cols5 dashboard-filters">
         <button class="card stat-filter ${dashboardFilter === 'all' ? 'active' : ''}" data-filter="all"><span class="stat">${problems.length}</span><span class="muted">Problems</span></button>
         <button class="card stat-filter ${dashboardFilter === 'Solved' ? 'active' : ''}" data-filter="Solved"><span class="stat">${solved}</span><span class="muted">Solved</span></button>
         <button class="card stat-filter ${dashboardFilter === 'Learning' ? 'active' : ''}" data-filter="Learning"><span class="stat">${learning}</span><span class="muted">Learning</span></button>
         <button class="card stat-filter ${dashboardFilter === 'Revision' ? 'active' : ''}" data-filter="Revision"><span class="stat">${revision}</span><span class="muted">Revision</span></button>
         <button class="card stat-filter ${dashboardFilter === 'due' ? 'active' : ''}" data-filter="due"><span class="stat">${due}</span><span class="muted">Due Today</span></button>
-      </div>
+      </div>` : ''}
       ${view === 'learn' ? '<section id="analytics" class="dashboard-analytics"></section>' : ''}
       <section id="content"></section>
       <footer class="app-footer"><span>${COPYRIGHT_TEXT}</span><a href="mailto:${SUPPORT_EMAIL}">Help Center: ${SUPPORT_EMAIL}</a></footer>
@@ -433,6 +442,7 @@ function render() {
   if (view === 'mock') renderMockInterviews();
   if (view === 'feedback') renderFeedback();
   if (view === 'settings') renderSettings();
+  if (view === 'admin') renderAdmin();
 }
 
 function renderAnalytics() {
@@ -614,7 +624,17 @@ function renderPlan() {
     })
     .sort((left, right) => dateValue(getProgress(problemId(left)).revision_due_on).localeCompare(dateValue(getProgress(problemId(right)).revision_due_on)));
   const perDay = Math.ceil(problems.length / 28);
-  $('content').innerHTML = `<div class="card">
+  $('content').innerHTML = `${studyPlans.length ? `<div class="card platform-plans">
+    <h2>Published Study Plans</h2>
+    <div class="plan-grid">${studyPlans.map((plan) => `<section class="published-plan">
+      <div class="section-head"><h3>${escapeHtml(plan.title)}</h3><span class="badge">${Number(plan.duration_days)} days</span></div>
+      <p class="muted">${escapeHtml(plan.description)}</p>
+      <div>${plan.items.slice(0, 8).map((item) => {
+        const problem = problems.find((entry) => problemId(entry) === String(item.problem_id).toLowerCase());
+        return problem ? `<button class="plan-item" data-id="${escapeHtml(problemId(problem))}"><span>Day ${Number(item.day_number)}</span>${escapeHtml(problemName(problem))}</button>` : '';
+      }).join('')}</div>
+    </section>`).join('')}</div>
+  </div>` : ''}<div class="card">
     <h2>Revision Queue</h2>
     <div id="dueList" class="due-list">${dueProblems.length ? '' : '<p class="muted">No revisions scheduled yet.</p>'}</div>
   </div>
@@ -640,14 +660,17 @@ function renderPlan() {
   document.querySelectorAll('#content .problem').forEach((element) => {
     element.onclick = () => selectProblem(element.dataset.id, true);
   });
+  document.querySelectorAll('#content .plan-item').forEach((element) => {
+    element.onclick = () => selectProblem(element.dataset.id, true);
+  });
 }
 
 function renderMockInterviews() {
   $('content').innerHTML = `<div class="mock-layout">
     <div class="card mock-form">
-      <p class="overline">PRACTICE UNDER PRESSURE <span class="soon-tag">COMING SOON</span></p>
-      <h2>Mock interviews are coming soon</h2>
-      <p class="muted">Soon you will be able to practice DSA problem solving or development discussions with an AI or a person.</p>
+      <p class="overline">PRACTICE UNDER PRESSURE</p>
+      <h2>Request a person-led mock interview</h2>
+      <p class="muted">Choose your practice track and preferred slot. An assigned interviewer and Google Meet link will appear after confirmation.</p>
       <form id="mockForm" class="grid">
         <fieldset class="choice-field">
           <legend>Interview track</legend>
@@ -659,8 +682,8 @@ function renderMockInterviews() {
         <fieldset class="choice-field">
           <legend>Conducted by</legend>
           <div class="choice-switch">
-            <label><input type="radio" name="mockMode" value="AI" checked><span>AI Interview</span></label>
-            <label><input type="radio" name="mockMode" value="Person"><span>Person Interview</span></label>
+            <label class="disabled-option"><input type="radio" name="mockMode" value="AI" disabled><span>AI - Coming Soon</span></label>
+            <label><input type="radio" name="mockMode" value="Person" checked><span>Person Interview</span></label>
           </div>
         </fieldset>
         <label>Round type
@@ -688,32 +711,26 @@ function renderMockInterviews() {
         <label>Preparation notes
           <textarea id="mockNotes" rows="4" maxlength="500" placeholder="Topics, questions, or points to practice explaining."></textarea>
         </label>
-        <button class="primary" id="mockSubmit" type="submit" disabled>Schedule interview - Coming Soon</button>
+        <button class="primary" id="mockSubmit" type="submit">Request interview</button>
       </form>
     </div>
     <div class="card mock-schedule">
       <div class="mock-head">
         <div>
-          <p class="overline">ON THE WAY</p>
-          <h2>What this feature will include</h2>
+          <p class="overline">REQUEST STATUS</p>
+          <h2>Your interview requests</h2>
         </div>
-        <span class="badge soon-badge">Coming Soon</span>
+        <span class="badge soon-badge">AI Coming Soon</span>
       </div>
-      <div class="mock-preview-list">
-        <p><b>DSA Interviews</b><span>Practice patterns, problem-solving explanations, and complexity analysis.</span></p>
-        <p><b>Development Interviews</b><span>Prepare frontend, backend, database, API, and system design discussions.</span></p>
-        <p><b>AI or Person Mode</b><span>Choose guided AI practice or schedule a person-led session when launched.</span></p>
-      </div>
+      <div id="interviewRequests" class="mock-request-list"><p class="muted">Loading requests...</p></div>
     </div>
   </div>`;
   document.querySelectorAll('input[name="mockTrack"]').forEach((input) => {
     input.onchange = () => drawMockFocusAreas(input.value);
   });
   drawMockFocusAreas('DSA');
-  $('mockForm').onsubmit = (event) => {
-    event.preventDefault();
-    toast('Mock interviews are coming soon.');
-  };
+  $('mockForm').onsubmit = submitInterviewRequest;
+  loadInterviewRequests();
 }
 
 function drawMockFocusAreas(track) {
@@ -723,6 +740,229 @@ function drawMockFocusAreas(track) {
     ? ['Frontend Development', 'Backend Development', 'Full Stack Development', 'Database and SQL', 'API Design', 'System Design', 'Testing and Debugging', 'DevOps and Deployment']
     : [...new Set(problems.map((problem) => problemTopic(problem)))];
   select.innerHTML = areas.map((area) => `<option>${escapeHtml(area)}</option>`).join('');
+}
+
+function formatDateTime(value) {
+  const time = new Date(value);
+  return Number.isNaN(time.getTime())
+    ? ''
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(time);
+}
+
+async function loadInterviewRequests() {
+  try {
+    const data = await api('/api/mock-interviews');
+    interviewRequests = data.interviews || [];
+    drawInterviewRequests();
+  } catch (error) {
+    if ($('interviewRequests')) $('interviewRequests').innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function drawInterviewRequests() {
+  const list = $('interviewRequests');
+  if (!list) return;
+  if (!interviewRequests.length) {
+    list.innerHTML = '<p class="muted">No requests submitted yet.</p>';
+    return;
+  }
+  list.innerHTML = interviewRequests.map((request) => `<article class="request-item">
+    <div class="section-head"><b>${escapeHtml(request.focus_area)}</b><span class="badge ${escapeHtml(request.status)}">${escapeHtml(request.status)}</span></div>
+    <p>${escapeHtml(request.interview_track)} | ${escapeHtml(request.interview_type)} | ${Number(request.duration_minutes)} minutes</p>
+    <p class="muted">Preferred slot: ${escapeHtml(formatDateTime(request.scheduled_at))}</p>
+    ${request.assigned_to ? `<p><b>Interviewer:</b> ${escapeHtml(request.assigned_to)}</p>` : ''}
+    ${request.meeting_link ? `<a class="resource-link" href="${escapeHtml(request.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : '<p class="muted">Waiting for interviewer assignment and meeting link.</p>'}
+    ${['Requested', 'Scheduled'].includes(request.status) ? `<button class="secondary cancel-request" data-id="${Number(request.id)}">Cancel request</button>` : ''}
+  </article>`).join('');
+  list.querySelectorAll('.cancel-request').forEach((button) => {
+    button.onclick = async () => {
+      try {
+        await api(`/api/mock-interviews/${button.dataset.id}/cancel`, { method: 'PATCH' });
+        toast('Interview request cancelled');
+        await loadInterviewRequests();
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+  });
+}
+
+async function submitInterviewRequest(event) {
+  event.preventDefault();
+  const scheduledAt = new Date(`${$('mockDate').value}T${$('mockTime').value}`);
+  if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+    toast('Choose a future preferred time.');
+    return;
+  }
+  const button = $('mockSubmit');
+  button.disabled = true;
+  button.textContent = 'Submitting...';
+  try {
+    const result = await api('/api/mock-interviews', {
+      method: 'POST',
+      body: JSON.stringify({
+        interview_track: document.querySelector('input[name="mockTrack"]:checked').value,
+        focus_area: $('mockFocus').value,
+        interview_type: $('mockType').value,
+        scheduled_at: scheduledAt.toISOString(),
+        duration_minutes: Number($('mockDuration').value),
+        notes: $('mockNotes').value || null
+      })
+    });
+    $('mockForm').reset();
+    drawMockFocusAreas('DSA');
+    toast(result.message);
+    await loadInterviewRequests();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Request interview';
+  }
+}
+
+async function renderAdmin() {
+  $('content').innerHTML = '<div class="card"><p class="muted">Loading admin console...</p></div>';
+  try {
+    const [overview, usersData, problemsData, plansData, interviewsData] = await Promise.all([
+      api('/api/admin/overview'),
+      api('/api/admin/users'),
+      api('/api/admin/problems'),
+      api('/api/admin/study-plans'),
+      api('/api/admin/mock-interviews')
+    ]);
+    if (view !== 'admin') return;
+    drawAdmin(overview, usersData.users || [], problemsData.problems || [], plansData.plans || [], interviewsData.requests || []);
+  } catch (error) {
+    $('content').innerHTML = `<div class="card"><p class="muted">${escapeHtml(error.message)}</p></div>`;
+  }
+}
+
+function drawAdmin(overview, users, addedProblems, plans, requests) {
+  $('content').innerHTML = `<div class="admin-metrics">
+      <div class="metric"><span>Registered users</span><b>${Number(overview.users)}</b></div>
+      <div class="metric"><span>Added problems</span><b>${Number(overview.added_problems)}</b></div>
+      <div class="metric"><span>Study plans</span><b>${Number(overview.study_plans)}</b></div>
+      <div class="metric"><span>Open interviews</span><b>${Number(overview.open_interviews)}</b></div>
+    </div>
+    <section class="admin-grid">
+      <div class="card admin-form">
+        <h2>Add Problem</h2>
+        <form id="adminProblemForm" class="grid">
+          <div class="grid cols2"><label>Name<input id="newProblemName" required></label><label>Category<input id="newProblemCategory" required placeholder="Arrays"></label></div>
+          <div class="grid cols2"><label>Difficulty<select id="newProblemDifficulty"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label>Rating<input id="newProblemRating" required placeholder="*****"></label></div>
+          <label>Initial status<select id="newProblemStatus">${statusOptions.map((status) => `<option>${status}</option>`).join('')}</select></label>
+          <label>Companies<input id="newProblemCompanies" required placeholder="Amazon, Google, Microsoft"></label>
+          <label>Article link<input id="newProblemArticle" type="url" required></label>
+          <label>Video link<input id="newProblemVideo" type="url" required></label>
+          <button class="primary" type="submit">Publish problem</button>
+        </form>
+      </div>
+      <div class="card admin-form">
+        <h2>Add Study Plan</h2>
+        <form id="adminPlanForm" class="grid">
+          <label>Plan title<input id="planTitle" required placeholder="30-Day Arrays to Graphs"></label>
+          <label>Description<textarea id="planDescription" rows="3" required></textarea></label>
+          <label>Duration in days<input id="planDuration" type="number" min="1" max="365" value="30" required></label>
+          <label>Plan items <span class="muted">one per line: day | problem id</span><textarea id="planItems" rows="5" required placeholder="1 | 1&#10;2 | custom-problem-id"></textarea></label>
+          <button class="primary" type="submit">Publish study plan</button>
+        </form>
+      </div>
+    </section>
+    <div class="card admin-table"><h2>Registered Users</h2><div class="table-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Provider</th><th>Joined</th><th>Solved</th></tr></thead><tbody>${users.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.email)}</td><td>${escapeHtml(account.provider)}</td><td>${escapeHtml(dateValue(account.created_at))}</td><td>${Number(account.solved_problems || 0)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>
+    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Open Calendar, add Google Meet conferencing, then paste the Meet link into the matching request.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+      <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
+      <div class="assignment-fields">
+        <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
+        <input name="assigned_to" placeholder="Interviewer name" value="${escapeHtml(request.assigned_to || '')}">
+        <input name="interviewer_email" type="email" placeholder="Interviewer email" value="${escapeHtml(request.interviewer_email || '')}">
+        <input name="meeting_link" type="url" placeholder="Google Meet link" value="${escapeHtml(request.meeting_link || '')}">
+        <button class="primary" type="submit">Save assignment</button>
+      </div>
+    </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
+  $('adminProblemForm').onsubmit = submitAdminProblem;
+  $('adminPlanForm').onsubmit = submitAdminPlan;
+  document.querySelectorAll('.assignment').forEach((form) => {
+    form.onsubmit = saveInterviewAssignment;
+  });
+}
+
+async function submitAdminProblem(event) {
+  event.preventDefault();
+  try {
+    await api('/api/admin/problems', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: $('newProblemName').value,
+        category: $('newProblemCategory').value,
+        difficulty: $('newProblemDifficulty').value,
+        rating: $('newProblemRating').value,
+        companies: $('newProblemCompanies').value,
+        article: $('newProblemArticle').value,
+        video: $('newProblemVideo').value,
+        status: $('newProblemStatus').value
+      })
+    });
+    toast('Problem published');
+    const custom = await api('/api/content/problems');
+    problems = [...problems.filter((problem) => !String(problem.id || '').startsWith('custom-')), ...(custom.problems || [])];
+    renderAdmin();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function submitAdminPlan(event) {
+  event.preventDefault();
+  const items = $('planItems').value.split('\n').filter((line) => line.trim()).map((line) => {
+    const [day, id] = line.split('|').map((part) => part.trim());
+    return { day_number: Number(day), problem_id: id };
+  });
+  const invalidItem = items.find((item) => !item.problem_id || item.day_number < 1 || item.day_number > Number($('planDuration').value)
+    || !problems.some((problem) => problemId(problem) === item.problem_id.toLowerCase()));
+  if (invalidItem) {
+    toast('Use a valid catalog problem id and a day within the plan duration.');
+    return;
+  }
+  try {
+    await api('/api/admin/study-plans', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: $('planTitle').value,
+        description: $('planDescription').value,
+        duration_days: Number($('planDuration').value),
+        items
+      })
+    });
+    studyPlans = await api('/api/content/study-plans').then((result) => result.plans || []);
+    toast('Study plan published');
+    renderAdmin();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function saveInterviewAssignment(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    await api(`/api/admin/mock-interviews/${form.dataset.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: form.elements.status.value,
+        assigned_to: form.elements.assigned_to.value || null,
+        interviewer_email: form.elements.interviewer_email.value || null,
+        meeting_link: form.elements.meeting_link.value || null,
+        admin_notes: null
+      })
+    });
+    toast('Interview assignment saved');
+    renderAdmin();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function renderFeedback() {
