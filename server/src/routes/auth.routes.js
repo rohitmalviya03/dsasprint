@@ -60,7 +60,9 @@ function publicUser(user) {
     contact_number: user.contact_number,
     provider: user.provider,
     avatar_url: user.avatar_url,
-    is_admin: isConfiguredAdmin(user.email, user.account_role)
+    is_admin: isConfiguredAdmin(user.email, user.account_role),
+    is_interviewer: user.account_role === 'interviewer',
+    account_role: user.account_role || 'user'
   };
 }
 

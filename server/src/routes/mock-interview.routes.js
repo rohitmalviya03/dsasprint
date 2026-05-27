@@ -19,11 +19,21 @@ router.use(requireAuth);
 
 router.get('/', asyncHandler(async (req, res) => {
   const [interviews] = await pool.execute(
-    `SELECT id, interview_track, interview_mode, focus_area, interview_type, scheduled_at,
-       duration_minutes, notes, status, assigned_to, meeting_link, admin_notes, created_at
+    `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.interview_mode,
+       mock_interviews.focus_area, mock_interviews.interview_type, mock_interviews.scheduled_at,
+       mock_interviews.duration_minutes, mock_interviews.notes, mock_interviews.status,
+       mock_interviews.assignment_status, mock_interviews.assigned_to, mock_interviews.meeting_link,
+       mock_interviews.admin_notes, mock_interviews.created_at,
+       interviewer_profiles.headline AS interviewer_headline,
+       interview_feedback.problem_solving_score, interview_feedback.communication_score,
+       interview_feedback.coding_quality_score, interview_feedback.fundamentals_score,
+       interview_feedback.strengths, interview_feedback.improvement_areas,
+       interview_feedback.recommended_practice, interview_feedback.recommendation
      FROM mock_interviews
-     WHERE user_id = ?
-     ORDER BY created_at DESC`,
+     LEFT JOIN interviewer_profiles ON interviewer_profiles.user_id = mock_interviews.interviewer_id
+     LEFT JOIN interview_feedback ON interview_feedback.interview_id = mock_interviews.id
+     WHERE mock_interviews.user_id = ?
+     ORDER BY mock_interviews.created_at DESC`,
     [req.user.id]
   );
   res.json({ interviews, aiComingSoon: true });

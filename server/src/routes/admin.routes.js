@@ -30,23 +30,34 @@ const planSchema = z.object({
   })).min(1).max(1000)
 });
 
+const interviewerSchema = z.object({
+  email: z.string().email().transform((value) => value.toLowerCase()),
+  headline: z.string().trim().max(150).nullable().optional(),
+  company: z.string().trim().max(120).nullable().optional(),
+  experience_years: z.number().int().min(0).max(70),
+  expertise: z.string().trim().min(2).max(500),
+  linkedin_url: z.string().url().max(1000).nullable().optional().or(z.literal('')),
+  bio: z.string().trim().max(2000).nullable().optional()
+});
+
 const requestUpdateSchema = z.object({
   status: z.enum(['Requested', 'Scheduled', 'Completed', 'Cancelled']),
-  assigned_to: z.string().trim().max(120).nullable().optional(),
-  interviewer_email: z.string().email().nullable().optional().or(z.literal('')),
+  interviewer_id: z.string().uuid().nullable().optional().or(z.literal('')),
   meeting_link: z.string().url().max(1000).refine((value) => new URL(value).hostname === 'meet.google.com', 'Use a Google Meet URL').nullable().optional().or(z.literal('')),
   admin_notes: z.string().trim().max(1000).nullable().optional()
 });
 
 router.get('/overview', asyncHandler(async (_req, res) => {
-  const [[users], [problems], [plans], [requests]] = await Promise.all([
+  const [[users], [interviewers], [problems], [plans], [requests]] = await Promise.all([
     pool.execute('SELECT COUNT(*) AS count FROM users'),
+    pool.execute('SELECT COUNT(*) AS count FROM interviewer_profiles WHERE is_active = TRUE'),
     pool.execute('SELECT COUNT(*) AS count FROM admin_problems WHERE is_published = TRUE'),
     pool.execute('SELECT COUNT(*) AS count FROM study_plans WHERE is_published = TRUE'),
     pool.execute("SELECT COUNT(*) AS count FROM mock_interviews WHERE status IN ('Requested', 'Scheduled')")
   ]);
   res.json({
     users: Number(users[0].count),
+    interviewers: Number(interviewers[0].count),
     added_problems: Number(problems[0].count),
     study_plans: Number(plans[0].count),
     open_interviews: Number(requests[0].count)
@@ -65,6 +76,63 @@ router.get('/users', asyncHandler(async (_req, res) => {
      LIMIT 500`
   );
   res.json({ users });
+}));
+
+router.get('/interviewers', asyncHandler(async (_req, res) => {
+  const [interviewers] = await pool.execute(
+    `SELECT users.id, users.name, users.email, interviewer_profiles.headline,
+       interviewer_profiles.company, interviewer_profiles.experience_years,
+       interviewer_profiles.expertise, interviewer_profiles.linkedin_url,
+       interviewer_profiles.bio, interviewer_profiles.is_active,
+       (SELECT COUNT(*) FROM mock_interviews
+        WHERE mock_interviews.interviewer_id = users.id
+          AND mock_interviews.status IN ('Requested', 'Scheduled')) AS active_assignments,
+       (SELECT COUNT(*) FROM interviewer_availability
+        WHERE interviewer_availability.interviewer_id = users.id
+          AND interviewer_availability.status = 'Available'
+          AND interviewer_availability.available_to >= CURRENT_TIMESTAMP) AS available_slots,
+       (SELECT MIN(interviewer_availability.available_from) FROM interviewer_availability
+        WHERE interviewer_availability.interviewer_id = users.id
+          AND interviewer_availability.status = 'Available'
+          AND interviewer_availability.available_to >= CURRENT_TIMESTAMP) AS next_available_at
+     FROM interviewer_profiles
+     INNER JOIN users ON users.id = interviewer_profiles.user_id
+     ORDER BY interviewer_profiles.is_active DESC, users.name ASC`
+  );
+  res.json({ interviewers });
+}));
+
+router.post('/interviewers', asyncHandler(async (req, res) => {
+  const parsed = interviewerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Enter a registered user email and complete the interviewer profile fields.' });
+  const profile = parsed.data;
+  const [users] = await pool.execute('SELECT id, name, account_role FROM users WHERE email = ? LIMIT 1', [profile.email]);
+  if (!users.length) return res.status(404).json({ message: 'This email has not registered on DSASprint yet. Ask the interviewer to create an account first.' });
+  if (users[0].account_role === 'admin') return res.status(409).json({ message: 'An admin account cannot be converted into an interviewer account.' });
+  await pool.execute("UPDATE users SET account_role = 'interviewer' WHERE id = ?", [users[0].id]);
+  await pool.execute(
+    `INSERT INTO interviewer_profiles
+      (user_id, headline, company, experience_years, expertise, linkedin_url, bio, is_active, approved_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?)
+     ON DUPLICATE KEY UPDATE headline = VALUES(headline), company = VALUES(company),
+       experience_years = VALUES(experience_years), expertise = VALUES(expertise),
+       linkedin_url = VALUES(linkedin_url), bio = VALUES(bio), is_active = TRUE,
+       approved_by = VALUES(approved_by), approved_at = CURRENT_TIMESTAMP`,
+    [users[0].id, profile.headline || null, profile.company || null, profile.experience_years, profile.expertise, profile.linkedin_url || null, profile.bio || null, req.user.id]
+  );
+  res.status(201).json({ message: `${users[0].name} is ready to use the interviewer workspace.` });
+}));
+
+router.patch('/interviewers/:id/status', asyncHandler(async (req, res) => {
+  const id = z.string().uuid().safeParse(req.params.id);
+  const parsed = z.object({ is_active: z.boolean() }).safeParse(req.body);
+  if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid interviewer status.' });
+  const [result] = await pool.execute(
+    'UPDATE interviewer_profiles SET is_active = ? WHERE user_id = ?',
+    [parsed.data.is_active, id.data]
+  );
+  if (!result.affectedRows) return res.status(404).json({ message: 'Interviewer not found.' });
+  res.json({ message: parsed.data.is_active ? 'Interviewer activated.' : 'Interviewer suspended.' });
 }));
 
 router.get('/problems', asyncHandler(async (_req, res) => {
@@ -131,7 +199,8 @@ router.get('/mock-interviews', asyncHandler(async (_req, res) => {
     `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.interview_mode,
        mock_interviews.focus_area, mock_interviews.interview_type, mock_interviews.scheduled_at,
        mock_interviews.duration_minutes, mock_interviews.notes, mock_interviews.status,
-       mock_interviews.assigned_to, mock_interviews.interviewer_email, mock_interviews.meeting_link,
+       mock_interviews.interviewer_id, mock_interviews.assignment_status, mock_interviews.assigned_to,
+       mock_interviews.interviewer_email, mock_interviews.meeting_link,
        mock_interviews.admin_notes, users.name AS user_name, users.email AS user_email
      FROM mock_interviews
      INNER JOIN users ON users.id = mock_interviews.user_id
@@ -145,11 +214,36 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
   const parsed = requestUpdateSchema.safeParse(req.body);
   if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid assignment, status, and Google Meet link.' });
   const value = parsed.data;
+  const interviewerId = value.interviewer_id || null;
+  let interviewer = null;
+  if (interviewerId) {
+    const [profiles] = await pool.execute(
+      `SELECT users.id, users.name, users.email
+       FROM users INNER JOIN interviewer_profiles ON interviewer_profiles.user_id = users.id
+       WHERE users.id = ? AND users.account_role = 'interviewer' AND interviewer_profiles.is_active = TRUE
+       LIMIT 1`,
+      [interviewerId]
+    );
+    interviewer = profiles[0];
+    if (!interviewer) return res.status(400).json({ message: 'Choose an active registered interviewer.' });
+  }
+  const [current] = await pool.execute('SELECT interviewer_id, assignment_status FROM mock_interviews WHERE id = ? LIMIT 1', [id.data]);
+  if (!current.length) return res.status(404).json({ message: 'Interview request not found.' });
+  const assignmentStatus = !interviewer
+    ? null
+    : current[0].interviewer_id === interviewer.id
+      ? current[0].assignment_status || 'Pending'
+      : 'Pending';
+  if (value.status === 'Scheduled' && (!interviewer || !value.meeting_link || assignmentStatus !== 'Accepted')) {
+    return res.status(400).json({ message: 'Add a Google Meet link and wait for the assigned interviewer to accept before scheduling.' });
+  }
   const [result] = await pool.execute(
     `UPDATE mock_interviews
-     SET status = ?, assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
+     SET status = ?, interviewer_id = ?, assignment_status = ?, assigned_at = ?,
+       assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
      WHERE id = ?`,
-    [value.status, value.assigned_to || null, value.interviewer_email || null, value.meeting_link || null, value.admin_notes || null, id.data]
+    [value.status, interviewerId, assignmentStatus, interviewer ? new Date() : null,
+      interviewer?.name || null, interviewer?.email || null, value.meeting_link || null, value.admin_notes || null, id.data]
   );
   if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });
   res.json({ message: 'Interview request updated.' });

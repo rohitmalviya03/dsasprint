@@ -19,12 +19,12 @@ export function configureGoogleAuth() {
       const [existing] = await pool.execute('SELECT * FROM users WHERE email = ? OR google_id = ? LIMIT 1', [email, profile.id]);
       if (existing.length) {
         await pool.execute('UPDATE users SET google_id = ?, avatar_url = ?, provider = IF(provider="local","local","google") WHERE id = ?', [profile.id, avatar, existing[0].id]);
-        const [rows] = await pool.execute('SELECT id, name, email, contact_number, avatar_url, provider FROM users WHERE id = ?', [existing[0].id]);
+        const [rows] = await pool.execute('SELECT id, name, email, contact_number, avatar_url, provider, account_role FROM users WHERE id = ?', [existing[0].id]);
         return done(null, rows[0]);
       }
       const id = uuidv4();
       await pool.execute('INSERT INTO users (id, name, email, google_id, avatar_url, provider) VALUES (?, ?, ?, ?, ?, "google")', [id, name, email, profile.id, avatar]);
-      return done(null, { id, name, email, contact_number: null, avatar_url: avatar, provider: 'google' });
+      return done(null, { id, name, email, contact_number: null, avatar_url: avatar, provider: 'google', account_role: 'user' });
     } catch (err) {
       return done(err);
     }

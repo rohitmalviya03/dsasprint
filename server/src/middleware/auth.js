@@ -39,3 +39,23 @@ export async function requireAdmin(req, res, next) {
 export function isConfiguredAdmin(email, accountRole) {
   return accountRole === 'admin' || configuredAdminEmails().includes(String(email || '').toLowerCase());
 }
+
+export async function requireInterviewer(req, res, next) {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT users.account_role, interviewer_profiles.is_active
+       FROM users
+       LEFT JOIN interviewer_profiles ON interviewer_profiles.user_id = users.id
+       WHERE users.id = ?
+       LIMIT 1`,
+      [req.user.id]
+    );
+    const interviewer = rows[0];
+    if (!interviewer || interviewer.account_role !== 'interviewer' || !interviewer.is_active) {
+      return res.status(403).json({ message: 'Active interviewer access required' });
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+}
