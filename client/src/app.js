@@ -20,6 +20,29 @@ let resetToken = '';
 
 const $ = (id) => document.getElementById(id);
 const statusOptions = ['Not Attempted', 'Learning', 'Revision', 'Solved'];
+const learnerViews = ['learn', 'plan', 'mock', 'feedback', 'settings'];
+
+function landingViewForRole() {
+  if (user?.is_admin) return 'admin';
+  if (user?.is_interviewer) return 'interviewer';
+  return 'learn';
+}
+
+function roleCanOpen(targetView) {
+  if (user?.is_admin) return targetView === 'admin';
+  if (user?.is_interviewer) return targetView === 'interviewer';
+  return learnerViews.includes(targetView);
+}
+
+function navigationForRole() {
+  if (user.is_admin) return '<button data-v="admin">Admin Console</button>';
+  if (user.is_interviewer) return '<button data-v="interviewer">Interviewer Workspace</button>';
+  return `<button data-v="learn">Learn</button>
+        <button data-v="plan">Revision Plan</button>
+        <button data-v="mock" class="nav-feature">Mock Interviews <span>Person beta</span></button>
+        <button data-v="feedback">Feedback</button>
+        <button data-v="settings">Settings</button>`;
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -172,6 +195,7 @@ async function load() {
   try {
     const session = await api('/api/auth/me');
     user = session.user;
+    if (!roleCanOpen(view)) view = landingViewForRole();
     try {
       const data = await api('/api/progress');
       progress = data.progress || {};
@@ -373,6 +397,7 @@ async function resetPassword() {
 
 function render() {
   if (!user) return renderAuth();
+  if (!roleCanOpen(view)) view = landingViewForRole();
   const entries = Object.values(progress);
   const solved = entries.filter((item) => item.status === 'Solved').length;
   const learning = entries.filter((item) => item.status === 'Learning').length;
@@ -397,13 +422,7 @@ function render() {
       <div class="wordmark inverse side-wordmark"><span class="brand-mark">D</span><span>${BRAND_NAME}</span></div>
       <div class="user-block"><div class="avatar">${escapeHtml((user.name || 'A').charAt(0).toUpperCase())}</div><p>${escapeHtml(user.name)}<br><span>${escapeHtml(user.email)}</span></p></div>
       <div class="nav">
-        <button data-v="learn">Learn</button>
-        <button data-v="plan">Revision Plan</button>
-        <button data-v="mock" class="nav-feature">Mock Interviews <span>Person beta</span></button>
-        <button data-v="feedback">Feedback</button>
-        <button data-v="settings">Settings</button>
-        ${user.is_interviewer ? '<button data-v="interviewer">Interviewer Workspace</button>' : ''}
-        ${user.is_admin ? '<button data-v="admin">Admin Console</button>' : ''}
+        ${navigationForRole()}
         <button id="logout">Logout</button>
       </div>
     </aside>
