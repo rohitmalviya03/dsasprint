@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS mock_interviews (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id CHAR(36) NOT NULL,
   interviewer_id CHAR(36) NULL,
+  availability_id BIGINT NULL,
   interview_track ENUM('DSA','Development') NOT NULL DEFAULT 'DSA',
   interview_mode ENUM('AI','Person') NOT NULL DEFAULT 'Person',
   focus_area VARCHAR(80) NOT NULL,
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS mock_interviews (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_mock_user_schedule (user_id, scheduled_at),
   INDEX idx_mock_interviewer_schedule (interviewer_id, scheduled_at),
+  INDEX idx_mock_availability (availability_id),
   CONSTRAINT fk_mock_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_mock_interviewer FOREIGN KEY (interviewer_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_mock_duration CHECK (duration_minutes IN (30, 45, 60, 90))

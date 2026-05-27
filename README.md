@@ -102,6 +102,12 @@ If `database/add_interviewer_portal.sql` was already applied before adding the p
 database/upgrade_interviewer_applications.sql
 ```
 
+If the interviewer portal migration was already applied before slot-backed admin scheduling was added, also run:
+
+```txt
+database/upgrade_interview_scheduling_workflow.sql
+```
+
 ## 2. Configure The App
 
 ```bash
@@ -279,7 +285,7 @@ For production deployment:
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
 Practice activity records power the streak and weekly analytics dashboard. Password reset tokens are hashed, single-use, and expire after 30 minutes.
-Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Interviewers use the **Apply as Interviewer** link on sign-in to create a pending account and profile. Admin reviews the application in **Admin Console > Interviewer Applications** and selects **Approve**; only then can the interviewer sign in to their workspace, publish availability, accept assigned requests, and share a structured scorecard with the learner. Admins assign a Google Meet URL to person-led requests. Automatic Meet generation requires a future Google Calendar API integration.
+Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Interviewers use the **Apply as Interviewer** link on sign-in to create a pending account and profile. Admin reviews the application in **Admin Console > Interviewer Applications** and selects **Approve**; only then can the interviewer sign in and publish availability. When a learner requests a mock interview, admin selects an interviewer whose available slot covers that time, attaches a Google Meet URL, and sets the request to **Scheduled**. The booked session appears immediately in the interviewer workspace, where the interviewer acknowledges or declines it and later shares a structured scorecard. Automatic Meet generation requires a future Google Calendar API integration.
 
 
 ## CORS Setup

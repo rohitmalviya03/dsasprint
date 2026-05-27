@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS interviewer_availability (
 
 ALTER TABLE mock_interviews
   ADD COLUMN interviewer_id CHAR(36) NULL AFTER user_id,
+  ADD COLUMN availability_id BIGINT NULL AFTER interviewer_id,
   ADD COLUMN assignment_status ENUM('Pending','Accepted','Declined') NULL AFTER status,
   ADD COLUMN assigned_at TIMESTAMP NULL AFTER assignment_status,
   ADD INDEX idx_mock_interviewer_schedule (interviewer_id, scheduled_at),
+  ADD INDEX idx_mock_availability (availability_id),
   ADD CONSTRAINT fk_mock_interviewer FOREIGN KEY (interviewer_id) REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS interview_feedback (

@@ -173,7 +173,7 @@ router.get('/mock-interviews', asyncHandler(async (_req, res) => {
     `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.interview_mode,
        mock_interviews.focus_area, mock_interviews.interview_type, mock_interviews.scheduled_at,
        mock_interviews.duration_minutes, mock_interviews.notes, mock_interviews.status,
-       mock_interviews.interviewer_id, mock_interviews.assignment_status, mock_interviews.assigned_to,
+       mock_interviews.interviewer_id, mock_interviews.availability_id, mock_interviews.assignment_status, mock_interviews.assigned_to,
        mock_interviews.interviewer_email, mock_interviews.meeting_link,
        mock_interviews.admin_notes, users.name AS user_name, users.email AS user_email
      FROM mock_interviews
@@ -201,26 +201,71 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
     interviewer = profiles[0];
     if (!interviewer) return res.status(400).json({ message: 'Choose an active registered interviewer.' });
   }
-  const [current] = await pool.execute('SELECT interviewer_id, assignment_status FROM mock_interviews WHERE id = ? LIMIT 1', [id.data]);
-  if (!current.length) return res.status(404).json({ message: 'Interview request not found.' });
-  const assignmentStatus = !interviewer
-    ? null
-    : current[0].interviewer_id === interviewer.id
-      ? current[0].assignment_status || 'Pending'
-      : 'Pending';
-  if (value.status === 'Scheduled' && (!interviewer || !value.meeting_link || assignmentStatus !== 'Accepted')) {
-    return res.status(400).json({ message: 'Add a Google Meet link and wait for the assigned interviewer to accept before scheduling.' });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [currentRows] = await connection.execute(
+      `SELECT interviewer_id, availability_id, assignment_status, status, scheduled_at, duration_minutes
+       FROM mock_interviews WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [id.data]
+    );
+    if (!currentRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Interview request not found.' });
+    }
+    const current = currentRows[0];
+    const assignmentStatus = !interviewer
+      ? null
+      : current.interviewer_id === interviewer.id
+        ? current.assignment_status === 'Accepted' ? 'Accepted' : 'Pending'
+        : 'Pending';
+    let availabilityId = current.availability_id || null;
+    const isNewSchedule = value.status === 'Scheduled'
+      && (current.status !== 'Scheduled' || current.interviewer_id !== interviewerId || !availabilityId);
+    if (value.status === 'Scheduled' && (!interviewer || !value.meeting_link)) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Choose an active interviewer and add a Google Meet link before scheduling.' });
+    }
+    if (isNewSchedule) {
+      const sessionStart = new Date(current.scheduled_at);
+      const sessionEnd = new Date(sessionStart.getTime() + Number(current.duration_minutes) * 60 * 1000);
+      const [slots] = await connection.execute(
+        `SELECT id FROM interviewer_availability
+         WHERE interviewer_id = ? AND status = 'Available'
+           AND available_from <= ? AND available_to >= ?
+         ORDER BY available_from ASC LIMIT 1 FOR UPDATE`,
+        [interviewerId, sessionStart, sessionEnd]
+      );
+      if (!slots.length) {
+        await connection.rollback();
+        return res.status(409).json({ message: 'This interviewer does not have an available slot covering the requested interview time.' });
+      }
+      if (availabilityId) {
+        await connection.execute("UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'", [availabilityId]);
+      }
+      availabilityId = slots[0].id;
+      await connection.execute("UPDATE interviewer_availability SET status = 'Booked' WHERE id = ?", [availabilityId]);
+    } else if ((value.status === 'Requested' || value.status === 'Cancelled' || !interviewer) && availabilityId) {
+      await connection.execute("UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'", [availabilityId]);
+      availabilityId = null;
+    }
+    const [result] = await connection.execute(
+      `UPDATE mock_interviews
+       SET status = ?, interviewer_id = ?, availability_id = ?, assignment_status = ?, assigned_at = ?,
+         assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
+       WHERE id = ?`,
+      [value.status, interviewerId, availabilityId, assignmentStatus, interviewer ? new Date() : null,
+        interviewer?.name || null, interviewer?.email || null, value.meeting_link || null, value.admin_notes || null, id.data]
+    );
+    await connection.commit();
+    if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });
+    res.json({ message: value.status === 'Scheduled' ? 'Interview scheduled and sent to the interviewer workspace.' : 'Interview request updated.' });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-  const [result] = await pool.execute(
-    `UPDATE mock_interviews
-     SET status = ?, interviewer_id = ?, assignment_status = ?, assigned_at = ?,
-       assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
-     WHERE id = ?`,
-    [value.status, interviewerId, assignmentStatus, interviewer ? new Date() : null,
-      interviewer?.name || null, interviewer?.email || null, value.meeting_link || null, value.admin_notes || null, id.data]
-  );
-  if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });
-  res.json({ message: 'Interview request updated.' });
 }));
 
 export default router;

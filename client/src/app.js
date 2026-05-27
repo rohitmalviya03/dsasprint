@@ -837,7 +837,7 @@ function drawInterviewRequests() {
     <p>${escapeHtml(request.interview_track)} | ${escapeHtml(request.interview_type)} | ${Number(request.duration_minutes)} minutes</p>
     <p class="muted">Preferred slot: ${escapeHtml(formatDateTime(request.scheduled_at))}</p>
     ${request.assigned_to ? `<p><b>Interviewer:</b> ${escapeHtml(request.assigned_to)}${request.interviewer_headline ? ` | ${escapeHtml(request.interviewer_headline)}` : ''}</p>` : ''}
-    ${request.assignment_status ? `<p class="muted">Assignment: ${escapeHtml(request.assignment_status)}</p>` : ''}
+    ${request.assignment_status ? `<p class="muted">Interviewer acknowledgement: ${escapeHtml(request.assignment_status)}</p>` : ''}
     ${request.meeting_link ? `<a class="resource-link" href="${escapeHtml(request.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : '<p class="muted">Waiting for interviewer assignment and meeting link.</p>'}
     ${request.recommendation ? `<section class="scorecard">
       <div class="section-head"><b>Interview Scorecard</b><span class="badge">${escapeHtml(request.recommendation)}</span></div>
@@ -954,7 +954,7 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
     }).join('')}</tbody></table></div>` : '<p class="muted">No interviewer applications submitted yet.</p>'}</div>
     <div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>
     <div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>
-    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Assign an interviewer and paste a Google Meet link while keeping the request as Requested. It becomes Scheduled when the interviewer accepts.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking immediately appears in the interviewer workspace.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
       <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
       <div class="assignment-fields">
         <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
@@ -962,7 +962,7 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
         <input name="meeting_link" type="url" placeholder="Google Meet link" value="${escapeHtml(request.meeting_link || '')}">
         <button class="primary" type="submit">Save assignment</button>
       </div>
-      ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
+      ${request.assignment_status ? `<p class="muted">Interviewer acknowledgement: ${escapeHtml(request.assignment_status)}</p>` : ''}
     </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
   $('adminProblemForm').onsubmit = submitAdminProblem;
   $('adminPlanForm').onsubmit = submitAdminPlan;
@@ -1108,7 +1108,7 @@ function drawInterviewer(profile, availability, interviews) {
       <div class="assignment-title"><b>${escapeHtml(interview.candidate_name)} | ${escapeHtml(interview.focus_area)}</b><span>${escapeHtml(interview.candidate_email)} | ${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)} | ${escapeHtml(formatDateTime(interview.scheduled_at))}</span></div>
       <div class="row"><span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>${interview.assignment_status ? `<span class="badge">${escapeHtml(interview.assignment_status)}</span>` : ''}${interview.meeting_link ? `<a class="resource-link" href="${escapeHtml(interview.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : ''}</div>
       ${interview.notes ? `<p class="muted">Candidate note: ${escapeHtml(interview.notes)}</p>` : ''}
-      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline</button></div>` : ''}
+      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Acknowledge booking</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline booking</button></div>` : ''}
       ${interview.assignment_status === 'Accepted' ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
         <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
         <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>

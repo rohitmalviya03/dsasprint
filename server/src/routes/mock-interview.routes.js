@@ -70,13 +70,37 @@ router.post('/', asyncHandler(async (req, res) => {
 router.patch('/:id/cancel', asyncHandler(async (req, res) => {
   const id = z.coerce.number().int().positive().safeParse(req.params.id);
   if (!id.success) return res.status(400).json({ message: 'Invalid interview request.' });
-  const [result] = await pool.execute(
-    `UPDATE mock_interviews SET status = 'Cancelled'
-     WHERE id = ? AND user_id = ? AND status IN ('Requested', 'Scheduled')`,
-    [id.data, req.user.id]
-  );
-  if (!result.affectedRows) return res.status(404).json({ message: 'Active interview request not found.' });
-  res.json({ message: 'Mock interview request cancelled.' });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [requests] = await connection.execute(
+      `SELECT availability_id FROM mock_interviews
+       WHERE id = ? AND user_id = ? AND status IN ('Requested', 'Scheduled')
+       LIMIT 1 FOR UPDATE`,
+      [id.data, req.user.id]
+    );
+    if (!requests.length) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Active interview request not found.' });
+    }
+    if (requests[0].availability_id) {
+      await connection.execute(
+        "UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'",
+        [requests[0].availability_id]
+      );
+    }
+    await connection.execute(
+      "UPDATE mock_interviews SET status = 'Cancelled', availability_id = NULL WHERE id = ?",
+      [id.data]
+    );
+    await connection.commit();
+    res.json({ message: 'Mock interview request cancelled.' });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }));
 
 export default router;

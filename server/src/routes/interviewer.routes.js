@@ -64,6 +64,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
        INNER JOIN users ON users.id = mock_interviews.user_id
        LEFT JOIN interview_feedback ON interview_feedback.interview_id = mock_interviews.id
        WHERE mock_interviews.interviewer_id = ?
+         AND mock_interviews.status IN ('Scheduled', 'Completed')
        ORDER BY mock_interviews.scheduled_at DESC`,
       [req.user.id]
     )
@@ -125,30 +126,47 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
   const parsed = z.object({ response: z.enum(['Accepted', 'Declined']) }).safeParse(req.body);
   if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid response.' });
   if (parsed.data.response === 'Accepted') {
-    const [pending] = await pool.execute(
-      `SELECT meeting_link FROM mock_interviews
-       WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Pending'
-       LIMIT 1`,
-      [id.data, req.user.id]
-    );
-    if (!pending.length) return res.status(404).json({ message: 'Pending interview assignment not found.' });
-    if (!pending[0].meeting_link) return res.status(409).json({ message: 'A Google Meet link is required before this assignment can be accepted.' });
     const [result] = await pool.execute(
-      `UPDATE mock_interviews SET assignment_status = 'Accepted', status = 'Scheduled'
-       WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Pending'`,
+      `UPDATE mock_interviews SET assignment_status = 'Accepted'
+       WHERE id = ? AND interviewer_id = ? AND status = 'Scheduled' AND assignment_status = 'Pending'`,
       [id.data, req.user.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ message: 'Pending interview assignment not found.' });
-    return res.json({ message: 'Interview accepted.' });
+    if (!result.affectedRows) return res.status(404).json({ message: 'Scheduled interview assignment not found.' });
+    return res.json({ message: 'Scheduled interview acknowledged.' });
   }
-  const [result] = await pool.execute(
-    `UPDATE mock_interviews SET assignment_status = 'Declined', status = 'Requested',
-       interviewer_id = NULL, assigned_to = NULL, interviewer_email = NULL, meeting_link = NULL
-     WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Pending'`,
-    [id.data, req.user.id]
-  );
-  if (!result.affectedRows) return res.status(404).json({ message: 'Pending interview assignment not found.' });
-  return res.json({ message: 'Assignment declined and returned to the admin queue.' });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [assignments] = await connection.execute(
+      `SELECT availability_id FROM mock_interviews
+       WHERE id = ? AND interviewer_id = ? AND status = 'Scheduled' AND assignment_status = 'Pending'
+       LIMIT 1 FOR UPDATE`,
+      [id.data, req.user.id]
+    );
+    if (!assignments.length) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Scheduled interview assignment not found.' });
+    }
+    if (assignments[0].availability_id) {
+      await connection.execute(
+        "UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'",
+        [assignments[0].availability_id]
+      );
+    }
+    await connection.execute(
+      `UPDATE mock_interviews SET assignment_status = 'Declined', status = 'Requested',
+         interviewer_id = NULL, availability_id = NULL, assigned_to = NULL, interviewer_email = NULL, meeting_link = NULL
+       WHERE id = ?`,
+      [id.data]
+    );
+    await connection.commit();
+    return res.json({ message: 'Assignment declined and returned to the admin queue.' });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }));
 
 router.put('/interviews/:id/feedback', asyncHandler(async (req, res) => {
