@@ -191,8 +191,28 @@ td, th { padding: 11px 10px; border-bottom: 1px solid var(--border); }
 .slot-row b, .slot-row span { display: block; }
 .slot-row span { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .interviewer-assignments h2 { margin: 0; font-size: 19px; }
-.interviewer-session { border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 12px; }
+.interviewer-session { border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; background: #fff; overflow: hidden; transition: border-color .16s, box-shadow .16s; }
+.interviewer-session.expanded { border-color: #8bc8bd; box-shadow: 0 0 0 3px rgba(8, 124, 108, .09); }
+.interviewer-session-toggle { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(170px, .7fr) minmax(190px, auto) auto; align-items: center; gap: 14px; width: 100%; min-height: 74px; padding: 14px 15px; border: 0; background: #fff; color: var(--text); text-align: left; cursor: pointer; }
+.interviewer-session-toggle:hover { background: #f8fbfa; }
+.interview-main, .interview-meta, .interview-statuses { min-width: 0; }
+.interview-main b, .interview-main small, .interview-meta span { display: block; overflow-wrap: anywhere; }
+.interview-main b { font-size: 15px; }
+.interview-main small, .interview-meta span { margin-top: 4px; color: var(--muted); font-size: 13px; }
+.interview-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.toggle-indicator { justify-self: end; min-width: 72px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--primary); font-size: 13px; font-weight: 700; text-align: center; }
+.interviewer-session-detail { display: grid; gap: 14px; padding: 0 15px 16px; border-top: 1px solid var(--border); background: #fbfdfc; }
+.interview-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 14px; }
+.interview-detail-grid p, .candidate-note { margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.interview-detail-grid b, .candidate-note b { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; }
+.interview-detail-grid span, .candidate-note span { color: #334449; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.interview-action-panel { padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.interview-action-panel .muted { margin: 0; }
 .session-response { margin-top: 13px; }
+.status-pending { color: #92400e; background: #fef3c7; }
+.status-accepted { color: #166534; background: #dcfce7; }
+.status-declined { color: #991b1b; background: #fee2e2; }
+.status-feedback { color: #075985; background: #e0f2fe; }
 .scorecard-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
 .scorecard-form h3 { margin: 0; font-size: 16px; }
 .scorecard-form label { display: grid; gap: 8px; color: #334449; font-size: 14px; font-weight: 620; }
@@ -280,6 +300,10 @@ a { color: var(--primary); }
   .feedback-layout { grid-template-columns: 1fr; }
   .mock-layout { grid-template-columns: 1fr; }
   .assignment-fields { grid-template-columns: 1fr; }
+  .interviewer-session-toggle { grid-template-columns: 1fr; gap: 9px; align-items: stretch; }
+  .interview-statuses { justify-content: flex-start; }
+  .toggle-indicator { justify-self: stretch; min-width: 0; }
+  .interview-detail-grid { grid-template-columns: 1fr; }
   .topbar { display: block; }
   .main { padding: 14px; }
   .app-footer { display: block; text-align: center; }

@@ -64,8 +64,6 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
        INNER JOIN users ON users.id = mock_interviews.user_id
        LEFT JOIN interview_feedback ON interview_feedback.interview_id = mock_interviews.id
        WHERE mock_interviews.interviewer_id = ?
-         AND (mock_interviews.assignment_status = 'Pending'
-           OR mock_interviews.status IN ('Scheduled', 'Completed'))
        ORDER BY mock_interviews.scheduled_at DESC`,
       [req.user.id]
     )

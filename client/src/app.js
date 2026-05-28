@@ -17,6 +17,7 @@ let dashboardFilter = 'all';
 let authNotice = '';
 let authMode = 'login';
 let resetToken = '';
+let expandedInterviewId = null;
 
 const $ = (id) => document.getElementById(id);
 const statusOptions = ['Not Attempted', 'Learning', 'Revision', 'Solved'];
@@ -1078,6 +1079,39 @@ function scoreSelect(name, label, selected) {
   return `<label>${label}<select name="${name}" required><option value="">Select score</option>${[1, 2, 3, 4, 5].map((score) => `<option value="${score}" ${Number(selected) === score ? 'selected' : ''}>${score} / 5</option>`).join('')}</select></label>`;
 }
 
+function statusBadgeClass(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function feedbackForm(interview) {
+  return `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
+    <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
+    <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>
+    <div class="grid cols2"><label>Strengths<textarea name="strengths" rows="3" required minlength="10">${escapeHtml(interview.strengths || '')}</textarea></label><label>Improvement areas<textarea name="improvement_areas" rows="3" required minlength="10">${escapeHtml(interview.improvement_areas || '')}</textarea></label></div>
+    <label>Recommended practice<textarea name="recommended_practice" rows="2" required minlength="5">${escapeHtml(interview.recommended_practice || '')}</textarea></label>
+    <label>Recommendation<select name="recommendation" required><option ${interview.recommendation === 'Needs Practice' ? 'selected' : ''}>Needs Practice</option><option ${interview.recommendation === 'Interview Ready' ? 'selected' : ''}>Interview Ready</option><option ${interview.recommendation === 'Strong Candidate' ? 'selected' : ''}>Strong Candidate</option></select></label>
+    <button class="primary" type="submit">${interview.recommendation ? 'Update feedback' : 'Share feedback with learner'}</button>
+  </form>`;
+}
+
+function interviewDetail(interview) {
+  if (interview.assignment_status === 'Pending') {
+    return `<div class="interview-action-panel"><p class="muted">Review the request, then accept or decline the assignment.</p><div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div></div>`;
+  }
+  if (interview.assignment_status === 'Accepted' && interview.status === 'Requested') {
+    return '<div class="interview-action-panel"><p class="muted">Accepted. Waiting for admin to schedule and attach the meeting link.</p></div>';
+  }
+  if (interview.assignment_status === 'Accepted' && interview.status === 'Scheduled') {
+    return `<div class="interview-action-panel"><div class="row session-response"><button class="primary interview-complete" data-id="${Number(interview.id)}">Mark interview completed</button></div></div>${feedbackForm(interview)}`;
+  }
+  if (interview.assignment_status === 'Accepted' && interview.status === 'Completed') {
+    return feedbackForm(interview);
+  }
+  if (interview.assignment_status === 'Declined') {
+    return '<div class="interview-action-panel"><p class="muted">You declined this assignment.</p></div>';
+  }
+  return '<div class="interview-action-panel"><p class="muted">No activity is available for this interview yet.</p></div>';
+}
 function drawInterviewer(profile, availability, interviews) {
   $('content').innerHTML = `<div class="interviewer-grid">
     <div class="card admin-form">
@@ -1104,27 +1138,38 @@ function drawInterviewer(profile, availability, interviews) {
   </div>
   <div class="card interviewer-assignments">
     <div class="section-head"><h2>Assigned Mock Interviews</h2><span class="muted">Accept assigned requests. Admin schedules the booking after assignment and availability are confirmed.</span></div>
-    ${interviews.length ? interviews.map((interview) => `<article class="interviewer-session">
-      <div class="assignment-title"><b>${escapeHtml(interview.candidate_name)} | ${escapeHtml(interview.focus_area)}</b><span>${escapeHtml(interview.candidate_email)} | ${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)} | ${escapeHtml(formatDateTime(interview.scheduled_at))}</span></div>
-      <div class="row"><span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>${interview.assignment_status ? `<span class="badge">${escapeHtml(interview.assignment_status)}</span>` : ''}${interview.meeting_link ? `<a class="resource-link" href="${escapeHtml(interview.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : ''}</div>
-      ${interview.notes ? `<p class="muted">Candidate note: ${escapeHtml(interview.notes)}</p>` : ''}
-      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div>` : ''}
-      ${interview.assignment_status === 'Accepted' && interview.status === 'Requested' ? '<p class="muted">Accepted. Waiting for admin to schedule and attach the meeting link.</p>' : ''}
-      ${interview.assignment_status === 'Accepted' && interview.status === 'Scheduled' ? `<div class="row session-response"><button class="primary interview-complete" data-id="${Number(interview.id)}">Mark interview completed</button></div>` : ''}
-      ${interview.assignment_status === 'Accepted' && ['Scheduled', 'Completed'].includes(interview.status) ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
-        <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
-        <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>
-        <div class="grid cols2"><label>Strengths<textarea name="strengths" rows="3" required minlength="10">${escapeHtml(interview.strengths || '')}</textarea></label><label>Improvement areas<textarea name="improvement_areas" rows="3" required minlength="10">${escapeHtml(interview.improvement_areas || '')}</textarea></label></div>
-        <label>Recommended practice<textarea name="recommended_practice" rows="2" required minlength="5">${escapeHtml(interview.recommended_practice || '')}</textarea></label>
-        <label>Recommendation<select name="recommendation" required><option ${interview.recommendation === 'Needs Practice' ? 'selected' : ''}>Needs Practice</option><option ${interview.recommendation === 'Interview Ready' ? 'selected' : ''}>Interview Ready</option><option ${interview.recommendation === 'Strong Candidate' ? 'selected' : ''}>Strong Candidate</option></select></label>
-        <button class="primary" type="submit">${interview.recommendation ? 'Update feedback' : 'Share feedback with learner'}</button>
-      </form>` : ''}
-    </article>`).join('') : '<p class="muted">No assignments yet. Your admin can assign matching interview requests to you.</p>'}
-  </div>`;
+    ${interviews.length ? interviews.map((interview) => {
+      const interviewId = String(interview.id);
+      const expanded = expandedInterviewId === interviewId;
+      return `<article class="interviewer-session ${expanded ? 'expanded' : ''}">
+        <button class="interviewer-session-toggle" type="button" data-id="${escapeHtml(interviewId)}" aria-expanded="${expanded}">
+          <span class="interview-main"><b>${escapeHtml(interview.candidate_name)} | ${escapeHtml(interview.focus_area)}</b><small>${escapeHtml(interview.candidate_email)}</small></span>
+          <span class="interview-meta"><span>${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)}</span><span>${escapeHtml(formatDateTime(interview.scheduled_at))}</span></span>
+          <span class="interview-statuses"><span class="badge ${escapeHtml(interview.status)} status-${statusBadgeClass(interview.status)}">${escapeHtml(interview.status)}</span>${interview.assignment_status ? `<span class="badge status-${statusBadgeClass(interview.assignment_status)}">${escapeHtml(interview.assignment_status)}</span>` : ''}${interview.recommendation ? '<span class="badge status-feedback">Feedback added</span>' : ''}</span>
+          <span class="toggle-indicator">${expanded ? 'Collapse' : 'Open'}</span>
+        </button>
+        ${expanded ? `<div class="interviewer-session-detail">
+          <div class="interview-detail-grid">
+            <p><b>Candidate</b><span>${escapeHtml(interview.candidate_name)}<br>${escapeHtml(interview.candidate_email)}</span></p>
+            <p><b>Session</b><span>${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)}<br>${escapeHtml(formatDateTime(interview.scheduled_at))}</span></p>
+            <p><b>Status</b><span>${escapeHtml(interview.status)}${interview.assignment_status ? ` | ${escapeHtml(interview.assignment_status)}` : ''}</span></p>
+          </div>
+          ${interview.meeting_link ? `<a class="resource-link" href="${escapeHtml(interview.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : ''}
+          ${interview.notes ? `<p class="candidate-note"><b>Candidate note</b><span>${escapeHtml(interview.notes)}</span></p>` : ''}
+          ${interviewDetail(interview)}
+        </div>` : ''}
+      </article>`;
+    }).join('') : '<p class="muted">No assignments yet. Your admin can assign matching interview requests to you.</p>'}  </div>`;
   $('interviewerProfileForm').onsubmit = submitInterviewerProfile;
   $('availabilityForm').onsubmit = submitAvailability;
   document.querySelectorAll('.remove-slot').forEach((button) => {
     button.onclick = () => removeAvailability(button.dataset.id);
+  });
+  document.querySelectorAll('.interviewer-session-toggle').forEach((button) => {
+    button.onclick = () => {
+      expandedInterviewId = expandedInterviewId === button.dataset.id ? null : button.dataset.id;
+      drawInterviewer(profile, availability, interviews);
+    };
   });
   document.querySelectorAll('.interview-response').forEach((button) => {
     button.onclick = () => respondToInterview(button.dataset.id, button.dataset.response);
