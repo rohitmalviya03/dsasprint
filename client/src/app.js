@@ -1103,13 +1103,14 @@ function drawInterviewer(profile, availability, interviews) {
     </div>
   </div>
   <div class="card interviewer-assignments">
-    <div class="section-head"><h2>Assigned Mock Interviews</h2><span class="muted">Accept scheduled bookings and share structured feedback after the session.</span></div>
+    <div class="section-head"><h2>Assigned Mock Interviews</h2><span class="muted">Accept assigned requests. Admin schedules the booking after assignment and availability are confirmed.</span></div>
     ${interviews.length ? interviews.map((interview) => `<article class="interviewer-session">
       <div class="assignment-title"><b>${escapeHtml(interview.candidate_name)} | ${escapeHtml(interview.focus_area)}</b><span>${escapeHtml(interview.candidate_email)} | ${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)} | ${escapeHtml(formatDateTime(interview.scheduled_at))}</span></div>
       <div class="row"><span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>${interview.assignment_status ? `<span class="badge">${escapeHtml(interview.assignment_status)}</span>` : ''}${interview.meeting_link ? `<a class="resource-link" href="${escapeHtml(interview.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : ''}</div>
       ${interview.notes ? `<p class="muted">Candidate note: ${escapeHtml(interview.notes)}</p>` : ''}
-      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept booking</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline booking</button></div>` : ''}
-      ${interview.assignment_status === 'Accepted' ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
+      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div>` : ''}
+      ${interview.assignment_status === 'Accepted' && interview.status === 'Requested' ? '<p class="muted">Accepted. Waiting for admin to schedule and attach the meeting link.</p>' : ''}
+      ${interview.assignment_status === 'Accepted' && ['Scheduled', 'Completed'].includes(interview.status) ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
         <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
         <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>
         <div class="grid cols2"><label>Strengths<textarea name="strengths" rows="3" required minlength="10">${escapeHtml(interview.strengths || '')}</textarea></label><label>Improvement areas<textarea name="improvement_areas" rows="3" required minlength="10">${escapeHtml(interview.improvement_areas || '')}</textarea></label></div>

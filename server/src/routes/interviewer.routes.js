@@ -64,7 +64,8 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
        INNER JOIN users ON users.id = mock_interviews.user_id
        LEFT JOIN interview_feedback ON interview_feedback.interview_id = mock_interviews.id
        WHERE mock_interviews.interviewer_id = ?
-         AND mock_interviews.status IN ('Scheduled', 'Completed')
+         AND (mock_interviews.assignment_status = 'Pending'
+           OR mock_interviews.status IN ('Scheduled', 'Completed'))
        ORDER BY mock_interviews.scheduled_at DESC`,
       [req.user.id]
     )
@@ -128,24 +129,24 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
   if (parsed.data.response === 'Accepted') {
     const [result] = await pool.execute(
       `UPDATE mock_interviews SET assignment_status = 'Accepted'
-       WHERE id = ? AND interviewer_id = ? AND status = 'Scheduled' AND assignment_status = 'Pending'`,
+       WHERE id = ? AND interviewer_id = ? AND status IN ('Requested', 'Scheduled') AND assignment_status = 'Pending'`,
       [id.data, req.user.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ message: 'Scheduled interview assignment not found.' });
-    return res.json({ message: 'Scheduled interview accepted.' });
+    if (!result.affectedRows) return res.status(404).json({ message: 'Pending interview assignment not found.' });
+    return res.json({ message: 'Interview assignment accepted.' });
   }
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     const [assignments] = await connection.execute(
       `SELECT availability_id FROM mock_interviews
-       WHERE id = ? AND interviewer_id = ? AND status = 'Scheduled' AND assignment_status = 'Pending'
+       WHERE id = ? AND interviewer_id = ? AND status IN ('Requested', 'Scheduled') AND assignment_status = 'Pending'
        LIMIT 1 FOR UPDATE`,
       [id.data, req.user.id]
     );
     if (!assignments.length) {
       await connection.rollback();
-      return res.status(404).json({ message: 'Scheduled interview assignment not found.' });
+      return res.status(404).json({ message: 'Pending interview assignment not found.' });
     }
     if (assignments[0].availability_id) {
       await connection.execute(
@@ -175,11 +176,11 @@ router.put('/interviews/:id/feedback', asyncHandler(async (req, res) => {
   if (!id.success || !parsed.success) return res.status(400).json({ message: 'Complete every score and feedback field.' });
   const [interviews] = await pool.execute(
     `SELECT id FROM mock_interviews
-     WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Accepted' AND status <> 'Cancelled'
+     WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Accepted' AND status IN ('Scheduled', 'Completed')
      LIMIT 1`,
     [id.data, req.user.id]
   );
-  if (!interviews.length) return res.status(404).json({ message: 'Accepted interview assignment not found.' });
+  if (!interviews.length) return res.status(404).json({ message: 'Scheduled accepted interview assignment not found.' });
   const value = parsed.data;
   await pool.execute(
     `INSERT INTO interview_feedback
