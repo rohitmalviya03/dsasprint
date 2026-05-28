@@ -1333,25 +1333,48 @@ function analyzeAtsResume(resumeText, jobText) {
   return { score, matched, missing, sections, suggestions: suggestions.slice(0, 7), keywordCount: jobKeywords.length };
 }
 
-function atsResultMarkup(result) {
-  return `<div class="ats-score-card">
-    <div><span>ATS Score</span><b>${result.score}</b><small>/ 100</small></div>
-    <p>${result.score >= 80 ? 'Strong match. Polish missing keywords and impact numbers.' : result.score >= 60 ? 'Good base. Add missing keywords and stronger measurable outcomes.' : 'Needs work. Improve keyword match, structure, and quantified achievements.'}</p>
-  </div>
-  <div class="ats-grid">
-    <div class="ats-panel"><h3>Keyword Match</h3><p><b>${result.matched.length}</b> matched from ${result.keywordCount || 0} target keywords</p><div class="chip-list">${result.matched.length ? result.matched.map((word) => `<span>${escapeHtml(word)}</span>`).join('') : '<em>No strong keyword matches yet.</em>'}</div></div>
-    <div class="ats-panel"><h3>Missing Keywords</h3><p>Add these only where they are truthful.</p><div class="chip-list warning">${result.missing.length ? result.missing.slice(0, 18).map((word) => `<span>${escapeHtml(word)}</span>`).join('') : '<em>No major keyword gaps found.</em>'}</div></div>
-  </div>
-  <div class="ats-panel"><h3>Resume Sections</h3><div class="section-checks">${result.sections.map((section) => `<span class="${section.found ? 'ok' : 'missing'}">${section.found ? 'OK' : 'Missing'} ${escapeHtml(section.label)}</span>`).join('')}</div></div>
-  <div class="ats-panel"><h3>Action Items</h3><ul>${result.suggestions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+function ratioPercent(item) {
+  return Math.min(100, Math.round((Number(item.score || 0) / Math.max(1, Number(item.max || 1))) * 100));
 }
 
+function atsStatus(value) {
+  return value ? 'Found' : 'Missing';
+}
+
+function atsResultMarkup(result) {
+  const breakdown = result.breakdown || [];
+  const contacts = result.contacts || {};
+  const readability = result.readability || {};
+  const targetRoles = result.targetRoles || [];
+  const roleMatches = result.roleMatches || [];
+  const matched = (result.matched || []).map((item) => typeof item === 'string' ? { word: item, importance: 'Medium' } : item);
+  const missing = (result.missing || []).map((item) => typeof item === 'string' ? { word: item, importance: 'Medium' } : item);
+  return `<div class="ats-score-card ${result.score >= 72 ? 'strong' : result.score >= 58 ? 'average' : 'risk'}">
+    <div><span>${escapeHtml(result.rating || 'ATS Score')}</span><b>${Number(result.score || 0)}</b><small>/ 100</small></div>
+    <p>${escapeHtml(result.summary || 'ATS report generated.')}</p>
+  </div>
+  <div class="ats-panel"><h3>Score Breakdown</h3><div class="ats-breakdown">${breakdown.map((item) => `<div class="ats-breakdown-row"><div><b>${escapeHtml(item.label)}</b><span>${Number(item.score || 0)} / ${Number(item.max || 0)}</span></div><progress value="${ratioPercent(item)}" max="100"></progress></div>`).join('')}</div></div>
+  <div class="ats-grid">
+    <div class="ats-panel"><h3>Target Role Match</h3>${targetRoles.length ? `<p>${roleMatches.length} of ${targetRoles.length} target role signals found.</p><div class="chip-list">${targetRoles.map((role) => `<span class="${roleMatches.includes(role) ? '' : 'missing-chip'}">${escapeHtml(role)}</span>`).join('')}</div>` : '<p class="muted">Paste a job description to detect role alignment.</p>'}</div>
+    <div class="ats-panel"><h3>Resume Signals</h3><div class="ats-metrics"><span><b>${Number(readability.wordCount || 0)}</b> words</span><span><b>${Number(readability.bulletCount || 0)}</b> bullets</span><span><b>${Number(readability.metricCount || 0)}</b> metrics</span><span><b>${Number(readability.actionVerbCount || 0)}</b> action verbs</span></div></div>
+  </div>
+  <div class="ats-grid">
+    <div class="ats-panel"><h3>Matched Keywords</h3><p><b>${matched.length}</b> matched from ${Number(result.keywordCount || 0)} tracked keywords</p><div class="chip-list">${matched.length ? matched.map((item) => `<span>${escapeHtml(item.word)} <small>${escapeHtml(item.importance || '')}</small></span>`).join('') : '<em>No strong keyword matches yet.</em>'}</div></div>
+    <div class="ats-panel"><h3>Missing Keywords</h3><p>Add these only where they are truthful.</p><div class="chip-list warning">${missing.length ? missing.map((item) => `<span>${escapeHtml(item.word)} <small>${escapeHtml(item.importance || '')}</small></span>`).join('') : '<em>No major keyword gaps found.</em>'}</div></div>
+  </div>
+  <div class="ats-grid">
+    <div class="ats-panel"><h3>Contact & Profiles</h3><div class="section-checks">${Object.entries(contacts).map(([label, found]) => `<span class="${found ? 'ok' : 'missing'}">${atsStatus(found)} ${escapeHtml(label)}</span>`).join('')}</div></div>
+    <div class="ats-panel"><h3>Parser & Formatting</h3><div class="ats-check-list">${(result.formatting || []).map((item) => `<div class="${item.ok ? 'ok' : 'missing'}"><b>${item.ok ? 'OK' : 'Fix'} ${escapeHtml(item.label)}</b><span>${escapeHtml(item.message)}</span></div>`).join('')}</div></div>
+  </div>
+  <div class="ats-panel"><h3>Resume Sections</h3><div class="section-checks">${(result.sections || []).map((section) => `<span class="${section.found ? 'ok' : 'missing'}">${section.found ? 'Found' : 'Missing'} ${escapeHtml(section.label)}</span>`).join('')}</div></div>
+  <div class="ats-panel"><h3>Priority Fixes</h3><div class="ats-fixes">${(result.suggestions || []).map((item) => `<article class="ats-fix ${String(item.priority || '').toLowerCase()}"><span>${escapeHtml(item.priority || 'Fix')}</span><div><b>${escapeHtml(item.title || '')}</b><p>${escapeHtml(item.detail || item)}</p></div></article>`).join('')}</div></div>`;
+}
 function renderAtsChecker() {
   $('content').innerHTML = `<div class="ats-layout">
     <div class="card ats-form-card">
       <p class="overline">RESUME OPTIMIZATION</p>
       <h2>Upload resume for ATS stats</h2>
-      <p class="muted">Upload a PDF or text resume, add the job description, and check keyword match, missing sections, and improvement points.</p>
+      <p class="muted">Upload a PDF or text resume, paste the target job description, and get a production-style ATS report with match score, parsing checks, role alignment, and priority fixes.</p>
       <form id="atsForm" class="grid">
         <label>Resume file
           <input id="resumeFile" type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain">
@@ -1360,14 +1383,14 @@ function renderAtsChecker() {
           <textarea id="resumeText" rows="10" placeholder="Text appears here after upload when readable. You can also paste or edit it manually." required></textarea>
         </label>
         <label>Job description / target role
-          <textarea id="jobText" rows="8" placeholder="Paste the job description for better ATS keyword matching."></textarea>
+          <textarea id="jobText" rows="8" placeholder="Paste the full job description. The ATS score is most accurate when this is included."></textarea>
         </label>
         <button class="primary" type="submit">Check ATS Stats</button>
       </form>
     </div>
     <div class="card ats-result-card" id="atsResult">
       <h2>ATS report</h2>
-      <p class="muted">Upload a resume and run the checker to see score, matched keywords, missing keywords, section health, and fixes.</p>
+      <p class="muted">Upload a resume and paste a job description to see ATS score, role match, parsing quality, contact signals, keyword gaps, and priority fixes.</p>
     </div>
   </div>`;
   $('resumeFile').onchange = () => {
