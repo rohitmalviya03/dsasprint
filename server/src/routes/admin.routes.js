@@ -259,7 +259,7 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
     );
     await connection.commit();
     if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });
-    res.json({ message: value.status === 'Scheduled' ? 'Interview scheduled and sent to the interviewer workspace.' : 'Interview request updated.' });
+    res.json({ message: value.status === 'Scheduled' ? 'Interview scheduled and sent to the interviewer for acceptance.' : 'Interview request updated.' });
   } catch (error) {
     await connection.rollback();
     throw error;

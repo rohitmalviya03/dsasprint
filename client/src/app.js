@@ -837,7 +837,7 @@ function drawInterviewRequests() {
     <p>${escapeHtml(request.interview_track)} | ${escapeHtml(request.interview_type)} | ${Number(request.duration_minutes)} minutes</p>
     <p class="muted">Preferred slot: ${escapeHtml(formatDateTime(request.scheduled_at))}</p>
     ${request.assigned_to ? `<p><b>Interviewer:</b> ${escapeHtml(request.assigned_to)}${request.interviewer_headline ? ` | ${escapeHtml(request.interviewer_headline)}` : ''}</p>` : ''}
-    ${request.assignment_status ? `<p class="muted">Interviewer acknowledgement: ${escapeHtml(request.assignment_status)}</p>` : ''}
+    ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
     ${request.meeting_link ? `<a class="resource-link" href="${escapeHtml(request.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : '<p class="muted">Waiting for interviewer assignment and meeting link.</p>'}
     ${request.recommendation ? `<section class="scorecard">
       <div class="section-head"><b>Interview Scorecard</b><span class="badge">${escapeHtml(request.recommendation)}</span></div>
@@ -954,7 +954,7 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
     }).join('')}</tbody></table></div>` : '<p class="muted">No interviewer applications submitted yet.</p>'}</div>
     <div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>
     <div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>
-    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking immediately appears in the interviewer workspace.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking appears in the interviewer workspace for acceptance.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
       <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
       <div class="assignment-fields">
         <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
@@ -962,7 +962,7 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
         <input name="meeting_link" type="url" placeholder="Google Meet link" value="${escapeHtml(request.meeting_link || '')}">
         <button class="primary" type="submit">Save assignment</button>
       </div>
-      ${request.assignment_status ? `<p class="muted">Interviewer acknowledgement: ${escapeHtml(request.assignment_status)}</p>` : ''}
+      ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
     </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
   $('adminProblemForm').onsubmit = submitAdminProblem;
   $('adminPlanForm').onsubmit = submitAdminPlan;
@@ -1033,7 +1033,7 @@ async function saveInterviewAssignment(event) {
   event.preventDefault();
   const form = event.currentTarget;
   try {
-    await api(`/api/admin/mock-interviews/${form.dataset.id}`, {
+    const result = await api(`/api/admin/mock-interviews/${form.dataset.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         status: form.elements.status.value,
@@ -1042,7 +1042,7 @@ async function saveInterviewAssignment(event) {
         admin_notes: null
       })
     });
-    toast('Interview assignment saved');
+    toast(result.message);
     renderAdmin();
   } catch (error) {
     toast(error.message);
@@ -1099,16 +1099,16 @@ function drawInterviewer(profile, availability, interviews) {
         <label>Note<input name="notes" maxlength="200" placeholder="Example: DSA rounds preferred"></label>
         <button class="primary" type="submit">Add available slot</button>
       </form>
-      <div class="slot-list">${availability.length ? availability.map((slot) => `<div class="slot-row"><div><b>${escapeHtml(formatDateTime(slot.available_from))}</b><span>to ${escapeHtml(formatDateTime(slot.available_to))}${slot.notes ? ` | ${escapeHtml(slot.notes)}` : ''}</span></div><button class="secondary remove-slot" data-id="${Number(slot.id)}">Remove</button></div>`).join('') : '<p class="muted">No future availability added yet.</p>'}</div>
+      <div class="slot-list">${availability.length ? availability.map((slot) => `<div class="slot-row"><div><b>${escapeHtml(formatDateTime(slot.available_from))}</b><span>to ${escapeHtml(formatDateTime(slot.available_to))}${slot.notes ? ` | ${escapeHtml(slot.notes)}` : ''}</span></div>${slot.status === 'Available' ? `<button class="secondary remove-slot" data-id="${Number(slot.id)}">Remove</button>` : `<span class="badge">${escapeHtml(slot.status)}</span>`}</div>`).join('') : '<p class="muted">No future availability added yet.</p>'}</div>
     </div>
   </div>
   <div class="card interviewer-assignments">
-    <div class="section-head"><h2>Assigned Mock Interviews</h2><span class="muted">Accept assignments and share structured feedback after the session.</span></div>
+    <div class="section-head"><h2>Assigned Mock Interviews</h2><span class="muted">Accept scheduled bookings and share structured feedback after the session.</span></div>
     ${interviews.length ? interviews.map((interview) => `<article class="interviewer-session">
       <div class="assignment-title"><b>${escapeHtml(interview.candidate_name)} | ${escapeHtml(interview.focus_area)}</b><span>${escapeHtml(interview.candidate_email)} | ${escapeHtml(interview.interview_track)} | ${escapeHtml(interview.interview_type)} | ${escapeHtml(formatDateTime(interview.scheduled_at))}</span></div>
       <div class="row"><span class="badge ${escapeHtml(interview.status)}">${escapeHtml(interview.status)}</span>${interview.assignment_status ? `<span class="badge">${escapeHtml(interview.assignment_status)}</span>` : ''}${interview.meeting_link ? `<a class="resource-link" href="${escapeHtml(interview.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : ''}</div>
       ${interview.notes ? `<p class="muted">Candidate note: ${escapeHtml(interview.notes)}</p>` : ''}
-      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Acknowledge booking</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline booking</button></div>` : ''}
+      ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept booking</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline booking</button></div>` : ''}
       ${interview.assignment_status === 'Accepted' ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
         <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
         <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>

@@ -132,7 +132,7 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
       [id.data, req.user.id]
     );
     if (!result.affectedRows) return res.status(404).json({ message: 'Scheduled interview assignment not found.' });
-    return res.json({ message: 'Scheduled interview acknowledged.' });
+    return res.json({ message: 'Scheduled interview accepted.' });
   }
   const connection = await pool.getConnection();
   try {
