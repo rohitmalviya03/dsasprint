@@ -170,6 +170,18 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
   }
 }));
 
+router.patch('/interviews/:id/complete', asyncHandler(async (req, res) => {
+  const id = z.coerce.number().int().positive().safeParse(req.params.id);
+  if (!id.success) return res.status(400).json({ message: 'Invalid interview request.' });
+  const [result] = await pool.execute(
+    `UPDATE mock_interviews SET status = 'Completed'
+     WHERE id = ? AND interviewer_id = ? AND assignment_status = 'Accepted' AND status = 'Scheduled'`,
+    [id.data, req.user.id]
+  );
+  if (!result.affectedRows) return res.status(404).json({ message: 'Scheduled accepted interview assignment not found.' });
+  res.json({ message: 'Interview marked completed. You can now prepare or update the report.' });
+}));
+
 router.put('/interviews/:id/feedback', asyncHandler(async (req, res) => {
   const id = z.coerce.number().int().positive().safeParse(req.params.id);
   const parsed = feedbackSchema.safeParse(req.body);

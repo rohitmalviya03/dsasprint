@@ -1110,6 +1110,7 @@ function drawInterviewer(profile, availability, interviews) {
       ${interview.notes ? `<p class="muted">Candidate note: ${escapeHtml(interview.notes)}</p>` : ''}
       ${interview.assignment_status === 'Pending' ? `<div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div>` : ''}
       ${interview.assignment_status === 'Accepted' && interview.status === 'Requested' ? '<p class="muted">Accepted. Waiting for admin to schedule and attach the meeting link.</p>' : ''}
+      ${interview.assignment_status === 'Accepted' && interview.status === 'Scheduled' ? `<div class="row session-response"><button class="primary interview-complete" data-id="${Number(interview.id)}">Mark interview completed</button></div>` : ''}
       ${interview.assignment_status === 'Accepted' && ['Scheduled', 'Completed'].includes(interview.status) ? `<form class="scorecard-form grid" data-id="${Number(interview.id)}">
         <h3>${interview.recommendation ? 'Update submitted feedback' : 'Submit feedback'}</h3>
         <div class="grid cols4">${scoreSelect('problem_solving_score', 'Problem solving', interview.problem_solving_score)}${scoreSelect('communication_score', 'Communication', interview.communication_score)}${scoreSelect('coding_quality_score', 'Coding quality', interview.coding_quality_score)}${scoreSelect('fundamentals_score', 'Fundamentals', interview.fundamentals_score)}</div>
@@ -1127,6 +1128,9 @@ function drawInterviewer(profile, availability, interviews) {
   });
   document.querySelectorAll('.interview-response').forEach((button) => {
     button.onclick = () => respondToInterview(button.dataset.id, button.dataset.response);
+  });
+  document.querySelectorAll('.interview-complete').forEach((button) => {
+    button.onclick = () => completeInterview(button.dataset.id);
   });
   document.querySelectorAll('.scorecard-form').forEach((form) => {
     form.onsubmit = submitInterviewFeedback;
@@ -1190,6 +1194,16 @@ async function respondToInterview(id, response) {
       method: 'PATCH',
       body: JSON.stringify({ response })
     });
+    toast(result.message);
+    renderInterviewer();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function completeInterview(id) {
+  try {
+    const result = await api(`/api/interviewer/interviews/${id}/complete`, { method: 'PATCH' });
     toast(result.message);
     renderInterviewer();
   } catch (error) {
