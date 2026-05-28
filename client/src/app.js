@@ -21,7 +21,7 @@ let expandedInterviewId = null;
 
 const $ = (id) => document.getElementById(id);
 const statusOptions = ['Not Attempted', 'Learning', 'Revision', 'Solved'];
-const learnerViews = ['learn', 'plan', 'mock', 'feedback', 'settings'];
+const learnerViews = ['learn', 'plan', 'mock', 'ats', 'feedback', 'settings'];
 
 function landingViewForRole() {
   if (user?.is_admin) return 'admin';
@@ -41,6 +41,7 @@ function navigationForRole() {
   return `<button data-v="learn">Learn</button>
         <button data-v="plan">Revision Plan</button>
         <button data-v="mock" class="nav-feature">Mock Interviews <span>Person beta</span></button>
+        <button data-v="ats">ATS Checker</button>
         <button data-v="feedback">Feedback</button>
         <button data-v="settings">Settings</button>`;
 }
@@ -457,7 +458,9 @@ function render() {
         ? 'Admin Console'
       : view === 'interviewer'
         ? 'Interviewer Workspace'
-      : view === 'feedback'
+      : view === 'ats'
+        ? 'ATS Checker'
+        : view === 'feedback'
         ? 'Feedback'
         : 'Settings';
 
@@ -472,7 +475,7 @@ function render() {
     </aside>
     <main class="main">
       <div class="topbar"><h1>${title}</h1><div class="sync-status"><span></span>Live sync</div></div>
-      ${!['admin', 'interviewer'].includes(view) ? `<div class="grid cols5 dashboard-filters">
+      ${!['admin', 'interviewer', 'ats'].includes(view) ? `<div class="grid cols5 dashboard-filters">
         <button class="card stat-filter ${dashboardFilter === 'all' ? 'active' : ''}" data-filter="all"><span class="stat">${problems.length}</span><span class="muted">Problems</span></button>
         <button class="card stat-filter ${dashboardFilter === 'Solved' ? 'active' : ''}" data-filter="Solved"><span class="stat">${solved}</span><span class="muted">Solved</span></button>
         <button class="card stat-filter ${dashboardFilter === 'Learning' ? 'active' : ''}" data-filter="Learning"><span class="stat">${learning}</span><span class="muted">Learning</span></button>
@@ -506,6 +509,7 @@ function render() {
   }
   if (view === 'plan') renderPlan();
   if (view === 'mock') renderMockInterviews();
+  if (view === 'ats') renderAtsChecker();
   if (view === 'feedback') renderFeedback();
   if (view === 'settings') renderSettings();
   if (view === 'admin') renderAdmin();
@@ -1280,6 +1284,116 @@ async function submitInterviewFeedback(event) {
   }
 }
 
+function normalizeWords(value) {
+  return String(value || '').toLowerCase().match(/[a-z][a-z0-9+#.-]{1,}/g) || [];
+}
+
+function topKeywords(text, limit = 28) {
+  const stopWords = new Set(['and', 'the', 'for', 'with', 'from', 'that', 'this', 'you', 'your', 'are', 'will', 'have', 'has', 'was', 'were', 'our', 'their', 'role', 'work', 'team', 'using', 'use', 'including', 'such', 'into', 'about', 'must', 'should', 'years', 'experience']);
+  const counts = new Map();
+  for (const word of normalizeWords(text)) {
+    if (word.length < 3 || stopWords.has(word)) continue;
+    counts.set(word, (counts.get(word) || 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1]).slice(0, limit).map(([word]) => word);
+}
+
+function sectionCheck(resume, label, patterns) {
+  const found = patterns.some((pattern) => pattern.test(resume));
+  return { label, found };
+}
+
+function analyzeAtsResume(resumeText, jobText) {
+  const resume = resumeText.toLowerCase();
+  const jobKeywords = topKeywords(jobText || resumeText, 32);
+  const resumeWords = new Set(normalizeWords(resumeText));
+  const matched = jobKeywords.filter((keyword) => resumeWords.has(keyword));
+  const missing = jobKeywords.filter((keyword) => !resumeWords.has(keyword));
+  const sections = [
+    sectionCheck(resume, 'Contact details', [/@/, /\+?\d[\d\s-]{7,}/, /linkedin\.com/i]),
+    sectionCheck(resume, 'Skills', [/\bskills\b/, /technical skills/, /technologies/]),
+    sectionCheck(resume, 'Experience', [/\bexperience\b/, /employment/, /work history/]),
+    sectionCheck(resume, 'Projects', [/\bprojects?\b/, /portfolio/]),
+    sectionCheck(resume, 'Education', [/\beducation\b/, /degree/, /university/, /college/])
+  ];
+  const actionVerbs = ['built', 'developed', 'designed', 'optimized', 'implemented', 'deployed', 'improved', 'reduced', 'increased', 'automated', 'led'];
+  const hasMetrics = /\b\d+%|\b\d+x|\b\d+\+|\b\d+ users|\b\d+ ms|\b\d+ seconds|\b\d+ projects/i.test(resumeText);
+  const verbCount = actionVerbs.filter((verb) => resumeWords.has(verb)).length;
+  const keywordScore = jobKeywords.length ? Math.round((matched.length / jobKeywords.length) * 45) : 28;
+  const sectionScore = sections.filter((section) => section.found).length * 7;
+  const impactScore = Math.min(20, (hasMetrics ? 10 : 0) + Math.min(10, verbCount * 2));
+  const lengthScore = resumeText.length > 1200 && resumeText.length < 9000 ? 10 : resumeText.length >= 600 ? 6 : 2;
+  const score = Math.min(100, keywordScore + sectionScore + impactScore + lengthScore);
+  const suggestions = [];
+  if (missing.length) suggestions.push(`Add important job keywords naturally: ${missing.slice(0, 8).join(', ')}.`);
+  if (!hasMetrics) suggestions.push('Add measurable impact: percentages, user count, latency, revenue, time saved, or scale.');
+  if (verbCount < 4) suggestions.push('Start more bullet points with strong action verbs like built, optimized, deployed, improved, or automated.');
+  for (const section of sections.filter((item) => !item.found)) suggestions.push(`Add a clear ${section.label} section heading.`);
+  if (resumeText.length < 1200) suggestions.push('Resume text looks short. Add project details, responsibilities, tools, and outcomes.');
+  return { score, matched, missing, sections, suggestions: suggestions.slice(0, 7), keywordCount: jobKeywords.length };
+}
+
+function atsResultMarkup(result) {
+  return `<div class="ats-score-card">
+    <div><span>ATS Score</span><b>${result.score}</b><small>/ 100</small></div>
+    <p>${result.score >= 80 ? 'Strong match. Polish missing keywords and impact numbers.' : result.score >= 60 ? 'Good base. Add missing keywords and stronger measurable outcomes.' : 'Needs work. Improve keyword match, structure, and quantified achievements.'}</p>
+  </div>
+  <div class="ats-grid">
+    <div class="ats-panel"><h3>Keyword Match</h3><p><b>${result.matched.length}</b> matched from ${result.keywordCount || 0} target keywords</p><div class="chip-list">${result.matched.length ? result.matched.map((word) => `<span>${escapeHtml(word)}</span>`).join('') : '<em>No strong keyword matches yet.</em>'}</div></div>
+    <div class="ats-panel"><h3>Missing Keywords</h3><p>Add these only where they are truthful.</p><div class="chip-list warning">${result.missing.length ? result.missing.slice(0, 18).map((word) => `<span>${escapeHtml(word)}</span>`).join('') : '<em>No major keyword gaps found.</em>'}</div></div>
+  </div>
+  <div class="ats-panel"><h3>Resume Sections</h3><div class="section-checks">${result.sections.map((section) => `<span class="${section.found ? 'ok' : 'missing'}">${section.found ? 'OK' : 'Missing'} ${escapeHtml(section.label)}</span>`).join('')}</div></div>
+  <div class="ats-panel"><h3>Action Items</h3><ul>${result.suggestions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+}
+
+function renderAtsChecker() {
+  $('content').innerHTML = `<div class="ats-layout">
+    <div class="card ats-form-card">
+      <p class="overline">RESUME OPTIMIZATION</p>
+      <h2>Upload resume for ATS stats</h2>
+      <p class="muted">Upload a text resume, add the job description, and check keyword match, missing sections, and improvement points.</p>
+      <form id="atsForm" class="grid">
+        <label>Resume file
+          <input id="resumeFile" type="file" accept=".txt,.md,.text,text/plain">
+        </label>
+        <label>Resume text
+          <textarea id="resumeText" rows="10" placeholder="Resume text appears here after upload. You can also paste it manually." required></textarea>
+        </label>
+        <label>Job description / target role
+          <textarea id="jobText" rows="8" placeholder="Paste the job description for better ATS keyword matching."></textarea>
+        </label>
+        <button class="primary" type="submit">Check ATS Stats</button>
+      </form>
+    </div>
+    <div class="card ats-result-card" id="atsResult">
+      <h2>ATS report</h2>
+      <p class="muted">Upload a resume and run the checker to see score, matched keywords, missing keywords, section health, and fixes.</p>
+    </div>
+  </div>`;
+  $('resumeFile').onchange = () => {
+    const file = $('resumeFile').files?.[0];
+    if (!file) return;
+    if (!/\.(txt|md|text)$/i.test(file.name) && !file.type.startsWith('text/')) {
+      toast('Please upload a text resume file for this checker.');
+      $('resumeFile').value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { $('resumeText').value = String(reader.result || ''); };
+    reader.onerror = () => toast('Could not read resume file.');
+    reader.readAsText(file);
+  };
+  $('atsForm').onsubmit = (event) => {
+    event.preventDefault();
+    const resumeText = $('resumeText').value.trim();
+    if (resumeText.length < 300) {
+      toast('Upload or paste a fuller resume before checking ATS stats.');
+      return;
+    }
+    const result = analyzeAtsResume(resumeText, $('jobText').value.trim());
+    $('atsResult').innerHTML = atsResultMarkup(result);
+  };
+}
 function renderFeedback() {
   $('content').innerHTML = `<div class="feedback-layout">
     <div class="card feedback-form">

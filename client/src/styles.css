@@ -131,6 +131,28 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .feedback-topic:first-of-type { margin-top: 14px; }
 .feedback-topic b { display: block; margin-bottom: 5px; }
 .feedback-topic span { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.ats-layout { display: grid; grid-template-columns: minmax(360px, .9fr) minmax(420px, 1.1fr); gap: 16px; align-items: start; }
+.ats-form-card h2, .ats-result-card h2 { margin: 0 0 10px; }
+.ats-form-card .muted, .ats-result-card .muted { margin: 0 0 18px; line-height: 1.45; }
+.ats-form-card label { display: grid; gap: 8px; color: #334449; font-size: 14px; font-weight: 620; }
+.ats-form-card input[type="file"] { height: auto; padding: 12px; }
+.ats-form-card textarea { resize: vertical; min-height: 140px; }
+.ats-score-card { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 16px; border: 1px solid #a7dbc9; border-radius: 8px; background: #e7f7f2; margin-bottom: 14px; }
+.ats-score-card div { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 4px 8px; }
+.ats-score-card span { grid-column: 1 / -1; color: var(--primary-strong); font-size: 13px; font-weight: 750; text-transform: uppercase; }
+.ats-score-card b { color: var(--primary-strong); font-size: 44px; line-height: 1; }
+.ats-score-card small { color: var(--muted); font-weight: 700; }
+.ats-score-card p { margin: 0; max-width: 360px; color: #27464a; line-height: 1.45; }
+.ats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ats-panel { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: #fff; margin-top: 12px; }
+.ats-panel h3 { margin: 0 0 8px; font-size: 16px; }
+.ats-panel p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.ats-panel ul { margin: 0; padding-left: 20px; color: #334449; line-height: 1.55; }
+.chip-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip-list span, .section-checks span { border: 1px solid #a7dbc9; border-radius: 999px; padding: 6px 9px; background: #f0fbf7; color: var(--primary-strong); font-size: 12px; font-weight: 700; }
+.chip-list.warning span, .section-checks .missing { border-color: #f1cf86; background: #fff6df; color: #945f08; }
+.chip-list em { color: var(--muted); font-size: 13px; }
+.section-checks { display: flex; flex-wrap: wrap; gap: 8px; }
 .mock-layout { display: grid; grid-template-columns: minmax(340px, .9fr) minmax(390px, 1.1fr); gap: 16px; }
 .mock-form h2, .mock-schedule h2 { margin: 0 0 10px; }
 .mock-form .muted { margin: 0 0 18px; line-height: 1.45; }
@@ -299,6 +321,9 @@ a { color: var(--primary); }
   .analytics-metrics, .analytics-detail, .admin-metrics, .admin-grid, .plan-grid, .interviewer-grid, .score-grid { grid-template-columns: 1fr; }
   .feedback-layout { grid-template-columns: 1fr; }
   .mock-layout { grid-template-columns: 1fr; }
+  .ats-layout, .ats-grid { grid-template-columns: 1fr; }
+  .ats-score-card { display: block; }
+  .ats-score-card p { margin-top: 12px; }
   .assignment-fields { grid-template-columns: 1fr; }
   .interviewer-session-toggle { grid-template-columns: 1fr; gap: 9px; align-items: stretch; }
   .interview-statuses { justify-content: flex-start; }
