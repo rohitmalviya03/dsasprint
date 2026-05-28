@@ -1351,13 +1351,13 @@ function renderAtsChecker() {
     <div class="card ats-form-card">
       <p class="overline">RESUME OPTIMIZATION</p>
       <h2>Upload resume for ATS stats</h2>
-      <p class="muted">Upload a text resume, add the job description, and check keyword match, missing sections, and improvement points.</p>
+      <p class="muted">Upload a PDF or text resume, add the job description, and check keyword match, missing sections, and improvement points.</p>
       <form id="atsForm" class="grid">
         <label>Resume file
-          <input id="resumeFile" type="file" accept=".txt,.md,.text,text/plain">
+          <input id="resumeFile" type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain">
         </label>
         <label>Resume text
-          <textarea id="resumeText" rows="10" placeholder="Resume text appears here after upload. You can also paste it manually." required></textarea>
+          <textarea id="resumeText" rows="10" placeholder="Text appears here after upload when readable. You can also paste or edit it manually." required></textarea>
         </label>
         <label>Job description / target role
           <textarea id="jobText" rows="8" placeholder="Paste the job description for better ATS keyword matching."></textarea>
@@ -1373,9 +1373,16 @@ function renderAtsChecker() {
   $('resumeFile').onchange = () => {
     const file = $('resumeFile').files?.[0];
     if (!file) return;
-    if (!/\.(txt|md|text)$/i.test(file.name) && !file.type.startsWith('text/')) {
-      toast('Please upload a text resume file for this checker.');
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const isText = file.type.startsWith('text/') || /\.(txt|md|text)$/i.test(file.name);
+    if (!isPdf && !isText) {
+      toast('Please upload a PDF, TXT, or MD resume file.');
       $('resumeFile').value = '';
+      return;
+    }
+    if (isPdf) {
+      $('resumeText').value = '';
+      $('resumeText').placeholder = 'PDF selected. Text will be extracted when you check ATS stats.';
       return;
     }
     const reader = new FileReader();
@@ -1383,15 +1390,33 @@ function renderAtsChecker() {
     reader.onerror = () => toast('Could not read resume file.');
     reader.readAsText(file);
   };
-  $('atsForm').onsubmit = (event) => {
+  $('atsForm').onsubmit = async (event) => {
     event.preventDefault();
+    const file = $('resumeFile').files?.[0];
     const resumeText = $('resumeText').value.trim();
-    if (resumeText.length < 300) {
-      toast('Upload or paste a fuller resume before checking ATS stats.');
+    if (!file && resumeText.length < 300) {
+      toast('Upload a resume file or paste fuller resume text before checking ATS stats.');
       return;
     }
-    const result = analyzeAtsResume(resumeText, $('jobText').value.trim());
-    $('atsResult').innerHTML = atsResultMarkup(result);
+    const button = $('atsForm').querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = 'Checking...';
+    try {
+      const formData = new FormData();
+      if (file) formData.append('resume', file);
+      formData.append('resume_text', resumeText);
+      formData.append('job_text', $('jobText').value.trim());
+      const response = await fetch(`${API}/api/ats/check`, { method: 'POST', credentials: 'include', body: formData });
+      const payload = await response.json().catch(() => ({ message: 'ATS check failed' }));
+      if (!response.ok) throw new Error(payload.message || 'ATS check failed');
+      if (payload.extracted_text && !resumeText) $('resumeText').value = payload.extracted_text;
+      $('atsResult').innerHTML = atsResultMarkup(payload.result);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Check ATS Stats';
+    }
   };
 }
 function renderFeedback() {

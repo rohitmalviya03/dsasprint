@@ -15,6 +15,7 @@ import mockInterviewRoutes from './routes/mock-interview.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import interviewerRoutes from './routes/interviewer.routes.js';
+import atsRoutes from './routes/ats.routes.js';
 import { configureGoogleAuth } from './auth/google.js';
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,7 @@ app.use('/api/mock-interviews', mockInterviewRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/interviewer', interviewerRoutes);
+app.use('/api/ats', atsRoutes);
 
 const clientDist = path.resolve(serverDir, '../../client/dist');
 const clientEntry = path.join(clientDist, 'index.html');
