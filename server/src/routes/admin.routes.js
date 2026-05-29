@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/async-handler.js';
+import { createInterviewCalendarEvent, isGoogleCalendarConfigured } from '../utils/google-calendar.js';
 
 const router = express.Router();
 
@@ -205,8 +206,14 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
   try {
     await connection.beginTransaction();
     const [currentRows] = await connection.execute(
-      `SELECT interviewer_id, availability_id, assignment_status, status, scheduled_at, duration_minutes
-       FROM mock_interviews WHERE id = ? LIMIT 1 FOR UPDATE`,
+      `SELECT mock_interviews.id, mock_interviews.interviewer_id, mock_interviews.availability_id,
+         mock_interviews.assignment_status, mock_interviews.status, mock_interviews.scheduled_at,
+         mock_interviews.duration_minutes, mock_interviews.interview_track, mock_interviews.interview_type,
+         mock_interviews.focus_area, mock_interviews.notes, mock_interviews.meeting_link,
+         users.name AS user_name, users.email AS user_email
+       FROM mock_interviews
+       INNER JOIN users ON users.id = mock_interviews.user_id
+       WHERE mock_interviews.id = ? LIMIT 1 FOR UPDATE`,
       [id.data]
     );
     if (!currentRows.length) {
@@ -222,9 +229,13 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
     let availabilityId = current.availability_id || null;
     const isNewSchedule = value.status === 'Scheduled'
       && (current.status !== 'Scheduled' || current.interviewer_id !== interviewerId || !availabilityId);
-    if (value.status === 'Scheduled' && (!interviewer || !value.meeting_link)) {
+    if (value.status === 'Scheduled' && !interviewer) {
       await connection.rollback();
-      return res.status(400).json({ message: 'Choose an active interviewer and add a Google Meet link before scheduling.' });
+      return res.status(400).json({ message: 'Choose an active interviewer before scheduling.' });
+    }
+    if (value.status === 'Scheduled' && !value.meeting_link && !current.meeting_link && !isGoogleCalendarConfigured()) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Add a Google Meet link or configure Google Calendar auto-scheduling.' });
     }
     if (isNewSchedule) {
       const sessionStart = new Date(current.scheduled_at);
@@ -249,13 +260,24 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
       await connection.execute("UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'", [availabilityId]);
       availabilityId = null;
     }
+    let meetingLink = value.status === 'Scheduled'
+      ? value.meeting_link || current.meeting_link || null
+      : value.meeting_link || null;
+    if (value.status === 'Scheduled' && !meetingLink) {
+      const event = await createInterviewCalendarEvent({
+        ...current,
+        interviewer_name: interviewer.name,
+        interviewer_email: interviewer.email
+      });
+      meetingLink = event.meetingLink;
+    }
     const [result] = await connection.execute(
       `UPDATE mock_interviews
        SET status = ?, interviewer_id = ?, availability_id = ?, assignment_status = ?, assigned_at = ?,
          assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
        WHERE id = ?`,
       [value.status, interviewerId, availabilityId, assignmentStatus, interviewer ? new Date() : null,
-        interviewer?.name || null, interviewer?.email || null, value.meeting_link || null, value.admin_notes || null, id.data]
+        interviewer?.name || null, interviewer?.email || null, meetingLink, value.admin_notes || null, id.data]
     );
     await connection.commit();
     if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });

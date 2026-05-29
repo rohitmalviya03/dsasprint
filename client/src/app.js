@@ -983,12 +983,12 @@ function adminStudyPlans(plans) {
 }
 
 function adminInterviewRequests(requests, interviewers) {
-  return `<div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking appears in the interviewer workspace for acceptance.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+  return `<div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><span class="muted">Google Calendar creates Meet links when configured</span></div><p class="muted">Choose an interviewer with a matching available slot and set status to Scheduled. Leave the Meet field blank to auto-create a Google Calendar event, or paste a Meet link manually.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
       <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
       <div class="assignment-fields">
         <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
         <select name="interviewer_id"><option value="">Assign interviewer</option>${interviewers.filter((interviewer) => interviewer.is_active).map((interviewer) => `<option value="${escapeHtml(interviewer.id)}" ${request.interviewer_id === interviewer.id ? 'selected' : ''}>${escapeHtml(interviewer.name)} | ${escapeHtml(interviewer.expertise)}</option>`).join('')}</select>
-        <input name="meeting_link" type="url" placeholder="Google Meet link" value="${escapeHtml(request.meeting_link || '')}">
+        <input name="meeting_link" type="url" placeholder="Auto-create Meet link if blank" value="${escapeHtml(request.meeting_link || '')}">
         <button class="primary" type="submit">Save assignment</button>
       </div>
       ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}

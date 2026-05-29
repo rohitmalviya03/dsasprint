@@ -198,6 +198,9 @@ DB_NAME=dsa_learning_platform
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=https://your-domain.example/api/auth/google/callback
+GOOGLE_CALENDAR_REFRESH_TOKEN=your_google_calendar_refresh_token
+GOOGLE_CALENDAR_ID=primary
+GOOGLE_CALENDAR_TIME_ZONE=Asia/Kolkata
 SMTP_HOST=your_smtp_host
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -256,6 +259,26 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/auth/google/callback
 
 Restart backend.
 
+## 4.1 Google Calendar Interview Scheduling
+
+Admin scheduling can automatically create a Google Calendar event, invite the learner and interviewer, generate a Google Meet link, and save that link on the interview request. If these variables are not configured, admin can still paste a Meet link manually.
+
+In Google Cloud Console, enable the Google Calendar API for the same OAuth project. Generate a refresh token for the Google account that should own the interview calendar using the Calendar event scope:
+
+```txt
+https://www.googleapis.com/auth/calendar.events
+```
+
+Add these values in `server/.env`:
+
+```env
+GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token
+GOOGLE_CALENDAR_ID=primary
+GOOGLE_CALENDAR_TIME_ZONE=Asia/Kolkata
+```
+
+Restart backend after changing `.env`. In Admin Console > Mock Interviews, choose an interviewer and set status to `Scheduled`; leave the Meet link field blank to auto-create the Calendar event.
+
 ## 5. Production Notes
 
 For production deployment:
@@ -285,7 +308,7 @@ For production deployment:
 Every user's status, notes, bookmarks, revision count, and last visited time are saved separately.
 Revision due dates are stored in `problem_progress.revision_due_on`.
 Practice activity records power the streak and weekly analytics dashboard. Password reset tokens are hashed, single-use, and expire after 30 minutes.
-Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Interviewers use the **Apply as Interviewer** link on sign-in to create a pending account and profile. Admin reviews the application in **Admin Console > Interviewer Applications** and selects **Approve**; only then can the interviewer sign in and publish availability. When a learner requests a mock interview, admin selects an interviewer whose available slot covers that time, attaches a Google Meet URL, and sets the request to **Scheduled**. The booked session appears immediately in the interviewer workspace, where the interviewer accepts or declines it and later shares a structured scorecard. Automatic Meet generation requires a future Google Calendar API integration.
+Set `ADMIN_EMAILS` to one or more comma-separated registered account email addresses to expose the protected Admin Console. Interviewers use the **Apply as Interviewer** link on sign-in to create a pending account and profile. Admin reviews the application in **Admin Console > Interviewer Applications** and selects **Approve**; only then can the interviewer sign in and publish availability. When a learner requests a mock interview, admin selects an interviewer whose available slot covers that time and sets the request to **Scheduled**. If Google Calendar is configured, DSASprint creates a Calendar event with a Google Meet link automatically; otherwise admin can paste a Meet URL manually. The booked session appears immediately in the interviewer workspace, where the interviewer accepts or declines it and later shares a structured scorecard.
 
 
 ## CORS Setup
