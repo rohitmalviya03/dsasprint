@@ -22,7 +22,12 @@ router.get('/', asyncHandler(async (req, res) => {
     `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.interview_mode,
        mock_interviews.focus_area, mock_interviews.interview_type, mock_interviews.scheduled_at,
        mock_interviews.duration_minutes, mock_interviews.notes, mock_interviews.status,
-       mock_interviews.assignment_status, mock_interviews.assigned_to, mock_interviews.meeting_link,
+       mock_interviews.assignment_status, mock_interviews.assigned_to,
+       CASE
+         WHEN mock_interviews.status = 'Scheduled' AND mock_interviews.assignment_status = 'Accepted'
+         THEN mock_interviews.meeting_link
+         ELSE NULL
+       END AS meeting_link,
        mock_interviews.admin_notes, mock_interviews.created_at,
        interviewer_profiles.headline AS interviewer_headline,
        interview_feedback.problem_solving_score, interview_feedback.communication_score,

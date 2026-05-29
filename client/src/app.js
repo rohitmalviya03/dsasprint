@@ -844,7 +844,7 @@ function drawInterviewRequests() {
     <p class="muted">Preferred slot: ${escapeHtml(formatDateTime(request.scheduled_at))}</p>
     ${request.assigned_to ? `<p><b>Interviewer:</b> ${escapeHtml(request.assigned_to)}${request.interviewer_headline ? ` | ${escapeHtml(request.interviewer_headline)}` : ''}</p>` : ''}
     ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
-    ${request.meeting_link ? `<a class="resource-link" href="${escapeHtml(request.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : '<p class="muted">Waiting for interviewer assignment and meeting link.</p>'}
+    ${request.meeting_link ? `<a class="resource-link" href="${escapeHtml(request.meeting_link)}" target="_blank" rel="noopener noreferrer">Join Google Meet</a>` : `<p class="muted">${escapeHtml(interviewWaitingMessage(request))}</p>`}
     ${request.recommendation ? `<section class="scorecard">
       <div class="section-head"><b>Interview Scorecard</b><span class="badge">${escapeHtml(request.recommendation)}</span></div>
       <div class="score-grid"><span>Problem solving <b>${Number(request.problem_solving_score)}/5</b></span><span>Communication <b>${Number(request.communication_score)}/5</b></span><span>Coding quality <b>${Number(request.coding_quality_score)}/5</b></span><span>Fundamentals <b>${Number(request.fundamentals_score)}/5</b></span></div>
@@ -865,6 +865,19 @@ function drawInterviewRequests() {
       }
     };
   });
+}
+
+function interviewWaitingMessage(request) {
+  if (request.status === 'Scheduled' && request.assignment_status === 'Pending') {
+    return 'Waiting for the interviewer to confirm this scheduled slot.';
+  }
+  if (request.status === 'Scheduled' && request.assignment_status === 'Accepted') {
+    return 'Meeting link is being prepared. Please refresh shortly.';
+  }
+  if (request.assignment_status === 'Declined') {
+    return 'The interviewer declined. Admin will assign another matching slot.';
+  }
+  return 'Waiting for interviewer assignment and meeting link.';
 }
 
 async function submitInterviewRequest(event) {
@@ -1167,7 +1180,8 @@ function feedbackForm(interview) {
 
 function interviewDetail(interview) {
   if (interview.assignment_status === 'Pending') {
-    return `<div class="interview-action-panel"><p class="muted">Review the request, then accept or decline the assignment.</p><div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">Accept assignment</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div></div>`;
+    const acceptLabel = interview.status === 'Scheduled' ? 'Confirm schedule' : 'Accept assignment';
+    return `<div class="interview-action-panel"><p class="muted">Review the request, then accept or decline the assignment.</p><div class="row session-response"><button class="primary interview-response" data-id="${Number(interview.id)}" data-response="Accepted">${acceptLabel}</button><button class="secondary interview-response" data-id="${Number(interview.id)}" data-response="Declined">Decline assignment</button></div></div>`;
   }
   if (interview.assignment_status === 'Accepted' && interview.status === 'Requested') {
     return '<div class="interview-action-panel"><p class="muted">Accepted. Waiting for admin to schedule and attach the meeting link.</p></div>';
