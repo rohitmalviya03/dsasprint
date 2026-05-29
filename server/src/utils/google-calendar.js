@@ -2,15 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { logger } from './logger.js';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3/calendars';
 
-function calendarConfig() {
+function calendarConfig(overrides = {}) {
   return {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
-    calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
-    timeZone: process.env.GOOGLE_CALENDAR_TIME_ZONE || 'Asia/Kolkata'
+    refreshToken: overrides.refreshToken || process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
+    calendarId: overrides.calendarId || process.env.GOOGLE_CALENDAR_ID || 'primary',
+    timeZone: overrides.timeZone || process.env.GOOGLE_CALENDAR_TIME_ZONE || 'Asia/Kolkata'
   };
 }
 
@@ -50,8 +51,8 @@ async function googleJson(response, fallbackMessage, context = {}) {
   return payload;
 }
 
-async function getAccessToken() {
-  const config = calendarConfig();
+async function getAccessToken(overrides = {}) {
+  const config = calendarConfig(overrides);
   logger.info('google_calendar_token_request', googleCalendarConfigStatus());
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -67,19 +68,61 @@ async function getAccessToken() {
   return token.access_token;
 }
 
+export function googleCalendarRedirectUri() {
+  return process.env.GOOGLE_CALENDAR_CALLBACK_URL || `http://localhost:${process.env.PORT || 5000}/api/interviewer/google-calendar/callback`;
+}
+
+export function googleCalendarAuthUrl(state) {
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID || '',
+    redirect_uri: googleCalendarRedirectUri(),
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
+    state
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+}
+
+export async function exchangeCalendarCode(code) {
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID || '',
+      client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+      code,
+      redirect_uri: googleCalendarRedirectUri(),
+      grant_type: 'authorization_code'
+    })
+  });
+  const token = await googleJson(response, 'Unable to connect Google Calendar.', { operation: 'calendar_code_exchange' });
+  if (!token.refresh_token) {
+    const error = new Error('Google did not return a refresh token. Reconnect Calendar and approve offline access.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${token.access_token}` }
+  });
+  const userInfo = await googleJson(userInfoResponse, 'Unable to read connected Google account.', { operation: 'calendar_userinfo' });
+  return { refreshToken: token.refresh_token, email: userInfo.email };
+}
+
 function meetLinkFromEvent(event) {
   return event.hangoutLink
     || event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === 'video')?.uri
     || '';
 }
 
-export async function createInterviewCalendarEvent(interview) {
-  if (!isGoogleCalendarConfigured()) {
+export async function createInterviewCalendarEvent(interview, options = {}) {
+  if (!options.refreshToken && !isGoogleCalendarConfigured()) {
     logger.warn('google_calendar_not_configured', googleCalendarConfigStatus());
-    throw new Error('Google Calendar is not configured. Add a Meet link manually or configure GOOGLE_CALENDAR_REFRESH_TOKEN.');
+    throw new Error('Google Calendar is not configured. Connect an interviewer Google Calendar before scheduling.');
   }
-  const config = calendarConfig();
-  const accessToken = await getAccessToken();
+  const config = calendarConfig(options);
+  const accessToken = await getAccessToken(options);
   const startsAt = new Date(interview.scheduled_at);
   const endsAt = new Date(startsAt.getTime() + Number(interview.duration_minutes) * 60 * 1000);
   const attendees = [
@@ -110,7 +153,7 @@ export async function createInterviewCalendarEvent(interview) {
         `Track: ${interview.interview_track}`,
         `Type: ${interview.interview_type}`,
         interview.notes ? `Candidate notes: ${interview.notes}` : '',
-        'Scheduled from DSASprint admin console.'
+        'Scheduled from DSASprint interviewer workspace.'
       ].filter(Boolean).join('\n'),
       start: { dateTime: startsAt.toISOString(), timeZone: config.timeZone },
       end: { dateTime: endsAt.toISOString(), timeZone: config.timeZone },

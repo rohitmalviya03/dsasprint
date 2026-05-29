@@ -1,9 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 import { requireAuth, requireInterviewer } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/async-handler.js';
-import { createInterviewCalendarEvent, isGoogleCalendarConfigured } from '../utils/google-calendar.js';
+import { createInterviewCalendarEvent, exchangeCalendarCode, googleCalendarAuthUrl } from '../utils/google-calendar.js';
 
 const router = express.Router();
 
@@ -40,7 +41,9 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     pool.execute(
       `SELECT users.name, users.email, interviewer_profiles.headline, interviewer_profiles.company,
          interviewer_profiles.experience_years, interviewer_profiles.expertise,
-         interviewer_profiles.linkedin_url, interviewer_profiles.bio
+         interviewer_profiles.linkedin_url, interviewer_profiles.bio,
+         interviewer_profiles.google_calendar_email,
+         interviewer_profiles.google_calendar_connected_at
        FROM interviewer_profiles INNER JOIN users ON users.id = interviewer_profiles.user_id
        WHERE interviewer_profiles.user_id = ? LIMIT 1`,
       [req.user.id]
@@ -70,6 +73,32 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     )
   ]);
   res.json({ profile: profiles[0], availability, interviews });
+}));
+
+router.get('/google-calendar/connect', asyncHandler(async (req, res) => {
+  const state = jwt.sign({ id: req.user.id, purpose: 'interviewer_calendar' }, process.env.JWT_SECRET, { expiresIn: '10m' });
+  res.redirect(googleCalendarAuthUrl(state));
+}));
+
+router.get('/google-calendar/callback', asyncHandler(async (req, res) => {
+  const parsed = z.object({ code: z.string().min(1), state: z.string().min(1) }).safeParse(req.query);
+  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+  if (!parsed.success) return res.redirect(`${clientUrl}/?auth=calendar_failed`);
+  const state = jwt.verify(parsed.data.state, process.env.JWT_SECRET);
+  if (state.id !== req.user.id || state.purpose !== 'interviewer_calendar') {
+    return res.redirect(`${clientUrl}/?auth=calendar_failed`);
+  }
+  const connected = await exchangeCalendarCode(parsed.data.code);
+  if (String(connected.email || '').toLowerCase() !== String(req.user.email || '').toLowerCase()) {
+    return res.redirect(`${clientUrl}/?auth=calendar_email_mismatch`);
+  }
+  await pool.execute(
+    `UPDATE interviewer_profiles
+     SET google_calendar_refresh_token = ?, google_calendar_email = ?, google_calendar_connected_at = CURRENT_TIMESTAMP
+     WHERE user_id = ?`,
+    [connected.refreshToken, connected.email, req.user.id]
+  );
+  res.redirect(`${clientUrl}/?auth=calendar_connected`);
 }));
 
 router.put('/profile', asyncHandler(async (req, res) => {
@@ -133,11 +162,13 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
         `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.focus_area,
            mock_interviews.interview_type, mock_interviews.scheduled_at, mock_interviews.duration_minutes,
            mock_interviews.notes, mock_interviews.status, mock_interviews.meeting_link,
+           interviewer_profiles.google_calendar_refresh_token, interviewer_profiles.google_calendar_email,
            users.name AS user_name, users.email AS user_email,
            interviewer_users.name AS interviewer_name, interviewer_users.email AS interviewer_email
          FROM mock_interviews
          INNER JOIN users ON users.id = mock_interviews.user_id
          INNER JOIN users AS interviewer_users ON interviewer_users.id = mock_interviews.interviewer_id
+         INNER JOIN interviewer_profiles ON interviewer_profiles.user_id = mock_interviews.interviewer_id
          WHERE mock_interviews.id = ? AND mock_interviews.interviewer_id = ?
            AND mock_interviews.status IN ('Requested', 'Scheduled')
            AND mock_interviews.assignment_status = 'Pending'
@@ -163,12 +194,12 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
         await connection.rollback();
         return res.status(409).json({ message: 'You do not have an available slot covering this requested interview time.' });
       }
-      if (!meetingLink && !isGoogleCalendarConfigured()) {
+      if (!meetingLink && !assignment.google_calendar_refresh_token) {
         await connection.rollback();
-        return res.status(400).json({ message: 'Google Calendar scheduling is not configured yet. Ask admin to configure Calendar before confirming.' });
+        return res.status(400).json({ message: 'Connect Google Calendar with your registered interviewer email before confirming the schedule.' });
       }
       if (!meetingLink) {
-        const event = await createInterviewCalendarEvent(assignment);
+        const event = await createInterviewCalendarEvent(assignment, { refreshToken: assignment.google_calendar_refresh_token });
         meetingLink = event.meetingLink;
       }
       await connection.execute("UPDATE interviewer_availability SET status = 'Booked' WHERE id = ?", [slots[0].id]);

@@ -193,6 +193,12 @@ async function load() {
     ? 'Google sign-in is not configured yet. Add Google OAuth credentials in the server environment and restart the API.'
     : params.get('auth') === 'failed'
       ? 'Google sign-in did not complete. Please try again.'
+      : params.get('auth') === 'calendar_connected'
+      ? 'Google Calendar connected. You can now confirm interview schedules.'
+      : params.get('auth') === 'calendar_email_mismatch'
+      ? 'Connect Google Calendar with the same email you use for this interviewer account.'
+      : params.get('auth') === 'calendar_failed'
+      ? 'Google Calendar connection did not complete. Please try again.'
       : '';
   if (params.has('auth') || resetToken) history.replaceState({}, '', location.pathname);
   try {
@@ -216,6 +222,7 @@ async function load() {
     progressStream?.close();
   }
   render();
+  if (user && authNotice) toast(authNotice);
 }
 
 function layout(content) {
@@ -1198,6 +1205,11 @@ function drawInterviewer(profile, availability, interviews) {
     <div class="card admin-form">
       <p class="overline">YOUR INTERVIEWER PROFILE</p>
       <h2>${escapeHtml(profile.name)}</h2>
+      <div class="support-card">
+        <b>Google Calendar</b>
+        <span>${profile.google_calendar_connected_at ? `Connected as ${escapeHtml(profile.google_calendar_email || profile.email)}` : 'Connect the same Google account as your registered interviewer email so you host the Meet.'}</span>
+        <a class="resource-link" href="${API}/api/interviewer/google-calendar/connect">${profile.google_calendar_connected_at ? 'Reconnect Calendar' : 'Connect Calendar'}</a>
+      </div>
       <form id="interviewerProfileForm" class="grid">
         <div class="grid cols2"><label>Headline<input name="headline" value="${escapeHtml(profile.headline || '')}"></label><label>Company<input name="company" value="${escapeHtml(profile.company || '')}"></label></div>
         <div class="grid cols2"><label>Experience (years)<input name="experience_years" type="number" min="0" max="70" required value="${Number(profile.experience_years || 0)}"></label><label>LinkedIn URL<input name="linkedin_url" type="url" value="${escapeHtml(profile.linkedin_url || '')}"></label></div>
