@@ -150,16 +150,34 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
       }
       const assignment = assignments[0];
       let meetingLink = assignment.meeting_link;
-      if (assignment.status === 'Scheduled' && !meetingLink && isGoogleCalendarConfigured()) {
+      const sessionStart = new Date(assignment.scheduled_at);
+      const sessionEnd = new Date(sessionStart.getTime() + Number(assignment.duration_minutes) * 60 * 1000);
+      const [slots] = await connection.execute(
+        `SELECT id FROM interviewer_availability
+         WHERE interviewer_id = ? AND status = 'Available'
+           AND available_from <= ? AND available_to >= ?
+         ORDER BY available_from ASC LIMIT 1 FOR UPDATE`,
+        [req.user.id, sessionStart, sessionEnd]
+      );
+      if (!slots.length) {
+        await connection.rollback();
+        return res.status(409).json({ message: 'You do not have an available slot covering this requested interview time.' });
+      }
+      if (!meetingLink && !isGoogleCalendarConfigured()) {
+        await connection.rollback();
+        return res.status(400).json({ message: 'Google Calendar scheduling is not configured yet. Ask admin to configure Calendar before confirming.' });
+      }
+      if (!meetingLink) {
         const event = await createInterviewCalendarEvent(assignment);
         meetingLink = event.meetingLink;
       }
+      await connection.execute("UPDATE interviewer_availability SET status = 'Booked' WHERE id = ?", [slots[0].id]);
       await connection.execute(
-        'UPDATE mock_interviews SET assignment_status = "Accepted", meeting_link = ? WHERE id = ?',
-        [meetingLink || null, id.data]
+        'UPDATE mock_interviews SET status = "Scheduled", assignment_status = "Accepted", availability_id = ?, meeting_link = ? WHERE id = ?',
+        [slots[0].id, meetingLink || null, id.data]
       );
       await connection.commit();
-      return res.json({ message: meetingLink ? 'Interview assignment accepted. The learner can now join from their mock interview page.' : 'Interview assignment accepted.' });
+      return res.json({ message: 'Interview scheduled. The learner can now join from their mock interview page.' });
     } catch (error) {
       await connection.rollback();
       throw error;

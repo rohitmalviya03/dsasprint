@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/async-handler.js';
-import { createInterviewCalendarEvent, isGoogleCalendarConfigured } from '../utils/google-calendar.js';
 
 const router = express.Router();
 
@@ -32,9 +31,7 @@ const planSchema = z.object({
 });
 
 const requestUpdateSchema = z.object({
-  status: z.enum(['Requested', 'Scheduled', 'Completed', 'Cancelled']),
   interviewer_id: z.string().uuid().nullable().optional().or(z.literal('')),
-  meeting_link: z.string().url().max(1000).refine((value) => new URL(value).hostname === 'meet.google.com', 'Use a Google Meet URL').nullable().optional().or(z.literal('')),
   admin_notes: z.string().trim().max(1000).nullable().optional()
 });
 
@@ -187,7 +184,7 @@ router.get('/mock-interviews', asyncHandler(async (_req, res) => {
 router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
   const id = z.coerce.number().int().positive().safeParse(req.params.id);
   const parsed = requestUpdateSchema.safeParse(req.body);
-  if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid assignment, status, and Google Meet link.' });
+  if (!id.success || !parsed.success) return res.status(400).json({ message: 'Choose a valid interviewer assignment.' });
   const value = parsed.data;
   const interviewerId = value.interviewer_id || null;
   let interviewer = null;
@@ -207,12 +204,8 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
     await connection.beginTransaction();
     const [currentRows] = await connection.execute(
       `SELECT mock_interviews.id, mock_interviews.interviewer_id, mock_interviews.availability_id,
-         mock_interviews.assignment_status, mock_interviews.status, mock_interviews.scheduled_at,
-         mock_interviews.duration_minutes, mock_interviews.interview_track, mock_interviews.interview_type,
-         mock_interviews.focus_area, mock_interviews.notes, mock_interviews.meeting_link,
-         users.name AS user_name, users.email AS user_email
+         mock_interviews.assignment_status, mock_interviews.status
        FROM mock_interviews
-       INNER JOIN users ON users.id = mock_interviews.user_id
        WHERE mock_interviews.id = ? LIMIT 1 FOR UPDATE`,
       [id.data]
     );
@@ -221,67 +214,35 @@ router.patch('/mock-interviews/:id', asyncHandler(async (req, res) => {
       return res.status(404).json({ message: 'Interview request not found.' });
     }
     const current = currentRows[0];
+    if (!['Requested', 'Scheduled'].includes(current.status)) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Only active interview requests can be assigned.' });
+    }
+    if (current.status === 'Scheduled' && current.assignment_status === 'Accepted') {
+      await connection.rollback();
+      return res.status(400).json({ message: 'This interview is already scheduled by the interviewer.' });
+    }
     const assignmentStatus = !interviewer
       ? null
       : current.interviewer_id === interviewer.id
         ? current.assignment_status === 'Accepted' ? 'Accepted' : 'Pending'
         : 'Pending';
     let availabilityId = current.availability_id || null;
-    const isNewSchedule = value.status === 'Scheduled'
-      && (current.status !== 'Scheduled' || current.interviewer_id !== interviewerId || !availabilityId);
-    if (value.status === 'Scheduled' && !interviewer) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Choose an active interviewer before scheduling.' });
-    }
-    if (value.status === 'Scheduled' && !value.meeting_link && !current.meeting_link && !isGoogleCalendarConfigured()) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Add a Google Meet link or configure Google Calendar auto-scheduling.' });
-    }
-    if (isNewSchedule) {
-      const sessionStart = new Date(current.scheduled_at);
-      const sessionEnd = new Date(sessionStart.getTime() + Number(current.duration_minutes) * 60 * 1000);
-      const [slots] = await connection.execute(
-        `SELECT id FROM interviewer_availability
-         WHERE interviewer_id = ? AND status = 'Available'
-           AND available_from <= ? AND available_to >= ?
-         ORDER BY available_from ASC LIMIT 1 FOR UPDATE`,
-        [interviewerId, sessionStart, sessionEnd]
-      );
-      if (!slots.length) {
-        await connection.rollback();
-        return res.status(409).json({ message: 'This interviewer does not have an available slot covering the requested interview time.' });
-      }
-      if (availabilityId) {
-        await connection.execute("UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'", [availabilityId]);
-      }
-      availabilityId = slots[0].id;
-      await connection.execute("UPDATE interviewer_availability SET status = 'Booked' WHERE id = ?", [availabilityId]);
-    } else if ((value.status === 'Requested' || value.status === 'Cancelled' || !interviewer) && availabilityId) {
+    if ((!interviewer || current.interviewer_id !== interviewerId) && availabilityId) {
       await connection.execute("UPDATE interviewer_availability SET status = 'Available' WHERE id = ? AND status = 'Booked'", [availabilityId]);
       availabilityId = null;
-    }
-    let meetingLink = value.status === 'Scheduled'
-      ? value.meeting_link || current.meeting_link || null
-      : value.meeting_link || null;
-    if (value.status === 'Scheduled' && !meetingLink) {
-      const event = await createInterviewCalendarEvent({
-        ...current,
-        interviewer_name: interviewer.name,
-        interviewer_email: interviewer.email
-      });
-      meetingLink = event.meetingLink;
     }
     const [result] = await connection.execute(
       `UPDATE mock_interviews
        SET status = ?, interviewer_id = ?, availability_id = ?, assignment_status = ?, assigned_at = ?,
          assigned_to = ?, interviewer_email = ?, meeting_link = ?, admin_notes = ?
        WHERE id = ?`,
-      [value.status, interviewerId, availabilityId, assignmentStatus, interviewer ? new Date() : null,
-        interviewer?.name || null, interviewer?.email || null, meetingLink, value.admin_notes || null, id.data]
+      ['Requested', interviewerId, availabilityId, assignmentStatus, interviewer ? new Date() : null,
+        interviewer?.name || null, interviewer?.email || null, null, value.admin_notes || null, id.data]
     );
     await connection.commit();
     if (!result.affectedRows) return res.status(404).json({ message: 'Interview request not found.' });
-    res.json({ message: value.status === 'Scheduled' ? 'Interview scheduled and sent to the interviewer for acceptance.' : 'Interview request updated.' });
+    res.json({ message: interviewer ? 'Interview assigned to interviewer for scheduling.' : 'Interview assignment cleared.' });
   } catch (error) {
     await connection.rollback();
     throw error;

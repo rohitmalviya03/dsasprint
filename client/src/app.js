@@ -996,15 +996,13 @@ function adminStudyPlans(plans) {
 }
 
 function adminInterviewRequests(requests, interviewers) {
-  return `<div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><span class="muted">Google Calendar creates Meet links when configured</span></div><p class="muted">Choose an interviewer with a matching available slot and set status to Scheduled. Leave the Meet field blank to auto-create a Google Calendar event, or paste a Meet link manually.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+  return `<div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><span class="muted">Admin assigns, interviewer schedules</span></div><p class="muted">Choose an interviewer for the request. The interviewer confirms the schedule, then Google Calendar creates the Meet link for the learner.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
       <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
       <div class="assignment-fields">
-        <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
         <select name="interviewer_id"><option value="">Assign interviewer</option>${interviewers.filter((interviewer) => interviewer.is_active).map((interviewer) => `<option value="${escapeHtml(interviewer.id)}" ${request.interviewer_id === interviewer.id ? 'selected' : ''}>${escapeHtml(interviewer.name)} | ${escapeHtml(interviewer.expertise)}</option>`).join('')}</select>
-        <input name="meeting_link" type="url" placeholder="Auto-create Meet link if blank" value="${escapeHtml(request.meeting_link || '')}">
-        <button class="primary" type="submit">Save assignment</button>
+        <button class="primary" type="submit">Assign interviewer</button>
       </div>
-      ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
+      <p class="muted">Status: ${escapeHtml(request.status)}${request.assignment_status ? ` | Interviewer response: ${escapeHtml(request.assignment_status)}` : ''}${request.meeting_link ? ' | Meet link ready' : ''}</p>
     </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
 }
 
@@ -1121,9 +1119,7 @@ async function saveInterviewAssignment(event) {
     const result = await api(`/api/admin/mock-interviews/${form.dataset.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
-        status: form.elements.status.value,
         interviewer_id: form.elements.interviewer_id.value || null,
-        meeting_link: form.elements.meeting_link.value || null,
         admin_notes: null
       })
     });
