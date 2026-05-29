@@ -213,11 +213,19 @@ button.secondary { background: white; color: var(--text); border: 1px solid var(
 .score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-bottom: 10px; }
 .score-grid span { padding: 8px; border-radius: 6px; background: #fff; color: var(--muted); font-size: 12px; }
 .score-grid b { display: block; margin-top: 4px; color: var(--text); font-size: 17px; }
+.admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: #eef3f2; }
+.admin-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 9px 13px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 680; }
+.admin-tabs button:hover { color: var(--text); background: rgba(255, 255, 255, .55); }
+.admin-tabs button.active { background: #fff; color: var(--primary); box-shadow: 0 1px 4px rgba(19, 34, 38, .08); }
+.admin-tabs span { min-width: 24px; padding: 3px 7px; border-radius: 999px; background: #e5efed; color: var(--text); font-size: 12px; text-align: center; }
+.admin-tabs button.active span { background: var(--focus); color: var(--primary-strong); }
+.admin-panel { min-width: 0; }
 .admin-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .admin-form h2, .admin-table h2, .interview-admin h2 { margin: 0 0 16px; font-size: 19px; }
 .admin-form label { display: grid; gap: 8px; color: #334449; font-size: 14px; font-weight: 620; }
 .admin-form textarea { resize: vertical; }
+.admin-action-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { color: var(--muted); font-size: 12px; text-transform: uppercase; text-align: left; }
@@ -351,6 +359,8 @@ a { color: var(--primary); }
   .ats-score-card p { margin-top: 12px; }
   .ats-metrics { grid-template-columns: 1fr; }
   .ats-fix { grid-template-columns: 1fr; }
+  .admin-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-tabs button { justify-content: space-between; }
   .assignment-fields { grid-template-columns: 1fr; }
   .interviewer-session-toggle { grid-template-columns: 1fr; gap: 9px; align-items: stretch; }
   .interview-statuses { justify-content: flex-start; }

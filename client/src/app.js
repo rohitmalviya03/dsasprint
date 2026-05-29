@@ -18,6 +18,7 @@ let authNotice = '';
 let authMode = 'login';
 let resetToken = '';
 let expandedInterviewId = null;
+let adminTab = 'overview';
 
 const $ = (id) => document.getElementById(id);
 const statusOptions = ['Not Attempted', 'Learning', 'Revision', 'Solved'];
@@ -918,48 +919,71 @@ async function renderAdmin() {
   }
 }
 
-function drawAdmin(overview, users, addedProblems, plans, requests, interviewers) {
-  $('content').innerHTML = `<div class="admin-metrics">
+function adminTabButton(id, label, count) {
+  return `<button class="${adminTab === id ? 'active' : ''}" data-admin-tab="${id}" type="button">${label}${count !== undefined ? `<span>${Number(count)}</span>` : ''}</button>`;
+}
+
+function adminMetrics(overview) {
+  return `<div class="admin-metrics">
       <div class="metric"><span>Registered users</span><b>${Number(overview.users)}</b></div>
       <div class="metric"><span>Active interviewers</span><b>${Number(overview.interviewers)}</b></div>
       <div class="metric"><span>Pending approvals</span><b>${Number(overview.pending_interviewers)}</b></div>
       <div class="metric"><span>Added problems</span><b>${Number(overview.added_problems)}</b></div>
       <div class="metric"><span>Study plans</span><b>${Number(overview.study_plans)}</b></div>
       <div class="metric"><span>Open interviews</span><b>${Number(overview.open_interviews)}</b></div>
-    </div>
-    <section class="admin-grid">
-      <div class="card admin-form">
-        <h2>Add Problem</h2>
-        <form id="adminProblemForm" class="grid">
-          <div class="grid cols2"><label>Name<input id="newProblemName" required></label><label>Category<input id="newProblemCategory" required placeholder="Arrays"></label></div>
-          <div class="grid cols2"><label>Difficulty<select id="newProblemDifficulty"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label>Rating<input id="newProblemRating" required placeholder="*****"></label></div>
-          <label>Initial status<select id="newProblemStatus">${statusOptions.map((status) => `<option>${status}</option>`).join('')}</select></label>
-          <label>Companies<input id="newProblemCompanies" required placeholder="Amazon, Google, Microsoft"></label>
-          <label>Article link<input id="newProblemArticle" type="url" required></label>
-          <label>Video link<input id="newProblemVideo" type="url" required></label>
-          <button class="primary" type="submit">Publish problem</button>
-        </form>
-      </div>
-      <div class="card admin-form">
-        <h2>Add Study Plan</h2>
-        <form id="adminPlanForm" class="grid">
-          <label>Plan title<input id="planTitle" required placeholder="30-Day Arrays to Graphs"></label>
-          <label>Description<textarea id="planDescription" rows="3" required></textarea></label>
-          <label>Duration in days<input id="planDuration" type="number" min="1" max="365" value="30" required></label>
-          <label>Plan items <span class="muted">one per line: day | problem id</span><textarea id="planItems" rows="5" required placeholder="1 | 1&#10;2 | custom-problem-id"></textarea></label>
-          <button class="primary" type="submit">Publish study plan</button>
-        </form>
-      </div>
-    </section>
-    <div class="card admin-table"><h2>Registered Users</h2><div class="table-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Provider</th><th>Joined</th><th>Solved</th></tr></thead><tbody>${users.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.email)}</td><td>${escapeHtml(account.account_role)}</td><td>${escapeHtml(account.provider)}</td><td>${escapeHtml(dateValue(account.created_at))}</td><td>${Number(account.solved_problems || 0)}</td></tr>`).join('')}</tbody></table></div></div>
-    <div class="card admin-table"><div class="section-head"><h2>Interviewer Applications</h2><span class="muted">Approve candidates before they can sign in</span></div>${interviewers.length ? `<div class="table-scroll"><table><thead><tr><th>Applicant</th><th>Expertise</th><th>Availability</th><th>Sessions</th><th>Status</th><th></th></tr></thead><tbody>${interviewers.map((interviewer) => {
-      const approvalStatus = interviewer.is_active ? 'Active' : interviewer.approved_at ? 'Suspended' : 'Pending';
-      const action = interviewer.is_active ? 'Suspend' : interviewer.approved_at ? 'Reactivate' : 'Approve';
-      return `<tr><td>${escapeHtml(interviewer.name)}<br><span class="muted">${escapeHtml(interviewer.email)}</span></td><td>${escapeHtml(interviewer.expertise)}${interviewer.company ? `<br><span class="muted">${escapeHtml(interviewer.company)}</span>` : ''}${interviewer.bio ? `<br><span class="muted">${escapeHtml(interviewer.bio)}</span>` : ''}</td><td>${Number(interviewer.available_slots || 0)} slot(s)${interviewer.next_available_at ? `<br><span class="muted">Next: ${escapeHtml(formatDateTime(interviewer.next_available_at))}</span>` : ''}</td><td>${Number(interviewer.active_assignments || 0)}</td><td>${escapeHtml(approvalStatus)}</td><td><button class="secondary interviewer-status" data-id="${escapeHtml(interviewer.id)}" data-active="${interviewer.is_active ? 'true' : 'false'}">${action}</button></td></tr>`;
-    }).join('')}</tbody></table></div>` : '<p class="muted">No interviewer applications submitted yet.</p>'}</div>
-    <div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>
-    <div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>
-    <div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking appears in the interviewer workspace for acceptance.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
+    </div>`;
+}
+
+function adminProblemForm() {
+  return `<div class="card admin-form">
+    <h2>Add Problem</h2>
+    <form id="adminProblemForm" class="grid">
+      <div class="grid cols2"><label>Name<input id="newProblemName" required></label><label>Category<input id="newProblemCategory" required placeholder="Arrays"></label></div>
+      <div class="grid cols2"><label>Difficulty<select id="newProblemDifficulty"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label>Rating<input id="newProblemRating" required placeholder="*****"></label></div>
+      <label>Initial status<select id="newProblemStatus">${statusOptions.map((status) => `<option>${status}</option>`).join('')}</select></label>
+      <label>Companies<input id="newProblemCompanies" required placeholder="Amazon, Google, Microsoft"></label>
+      <label>Article link<input id="newProblemArticle" type="url" required></label>
+      <label>Video link<input id="newProblemVideo" type="url" required></label>
+      <button class="primary" type="submit">Publish problem</button>
+    </form>
+  </div>`;
+}
+
+function adminPlanForm() {
+  return `<div class="card admin-form">
+    <h2>Add Study Plan</h2>
+    <form id="adminPlanForm" class="grid">
+      <label>Plan title<input id="planTitle" required placeholder="30-Day Arrays to Graphs"></label>
+      <label>Description<textarea id="planDescription" rows="3" required></textarea></label>
+      <label>Duration in days<input id="planDuration" type="number" min="1" max="365" value="30" required></label>
+      <label>Plan items <span class="muted">one per line: day | problem id</span><textarea id="planItems" rows="5" required placeholder="1 | 1&#10;2 | custom-problem-id"></textarea></label>
+      <button class="primary" type="submit">Publish study plan</button>
+    </form>
+  </div>`;
+}
+
+function adminUsersTable(users) {
+  return `<div class="card admin-table"><h2>Registered Users</h2><div class="table-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Provider</th><th>Joined</th><th>Solved</th></tr></thead><tbody>${users.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.email)}</td><td>${escapeHtml(account.account_role)}</td><td>${escapeHtml(account.provider)}</td><td>${escapeHtml(dateValue(account.created_at))}</td><td>${Number(account.solved_problems || 0)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function adminInterviewerTable(interviewers) {
+  return `<div class="card admin-table"><div class="section-head"><h2>Interviewer Applications</h2><span class="muted">Approve candidates before they can sign in</span></div>${interviewers.length ? `<div class="table-scroll"><table><thead><tr><th>Applicant</th><th>Expertise</th><th>Availability</th><th>Sessions</th><th>Status</th><th></th></tr></thead><tbody>${interviewers.map((interviewer) => {
+    const approvalStatus = interviewer.is_active ? 'Active' : interviewer.approved_at ? 'Suspended' : 'Pending';
+    const action = interviewer.is_active ? 'Suspend' : interviewer.approved_at ? 'Reactivate' : 'Approve';
+    return `<tr><td>${escapeHtml(interviewer.name)}<br><span class="muted">${escapeHtml(interviewer.email)}</span></td><td>${escapeHtml(interviewer.expertise)}${interviewer.company ? `<br><span class="muted">${escapeHtml(interviewer.company)}</span>` : ''}${interviewer.bio ? `<br><span class="muted">${escapeHtml(interviewer.bio)}</span>` : ''}</td><td>${Number(interviewer.available_slots || 0)} slot(s)${interviewer.next_available_at ? `<br><span class="muted">Next: ${escapeHtml(formatDateTime(interviewer.next_available_at))}</span>` : ''}</td><td>${Number(interviewer.active_assignments || 0)}</td><td>${escapeHtml(approvalStatus)}</td><td><button class="secondary interviewer-status" data-id="${escapeHtml(interviewer.id)}" data-active="${interviewer.is_active ? 'true' : 'false'}">${action}</button></td></tr>`;
+  }).join('')}</tbody></table></div>` : '<p class="muted">No interviewer applications submitted yet.</p>'}</div>`;
+}
+
+function adminProblemCatalog() {
+  return `<div class="card admin-table"><div class="section-head"><h2>Problem Catalog IDs</h2><span class="muted">Use these ids in study plans</span></div><div class="table-scroll catalog-scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Topic</th><th>Difficulty</th></tr></thead><tbody>${problems.map((problem) => `<tr><td class="key-cell">${escapeHtml(problemId(problem))}</td><td>${escapeHtml(problemName(problem))}</td><td>${escapeHtml(problemTopic(problem))}</td><td>${escapeHtml(problemDifficulty(problem))}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function adminStudyPlans(plans) {
+  return `<div class="card admin-table"><h2>Published Study Plans</h2>${plans.length ? plans.map((plan) => `<div class="admin-plan-row"><b>${escapeHtml(plan.title)}</b><span>${Number(plan.duration_days)} days</span><p class="muted">${escapeHtml(plan.description)}</p></div>`).join('') : '<p class="muted">No admin study plans published yet.</p>'}</div>`;
+}
+
+function adminInterviewRequests(requests, interviewers) {
+  return `<div class="card interview-admin"><div class="section-head"><h2>Mock Interview Requests</h2><a class="secondary-link" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">Create Google Meet event</a></div><p class="muted">Choose an interviewer with a matching available slot, paste the Google Meet link, and set status to Scheduled. The booking appears in the interviewer workspace for acceptance.</p>${requests.length ? requests.map((request) => `<form class="assignment" data-id="${Number(request.id)}">
       <div class="assignment-title"><b>${escapeHtml(request.user_name)}</b><span>${escapeHtml(request.user_email)} | ${escapeHtml(request.interview_track)} | ${escapeHtml(request.focus_area)} | ${escapeHtml(formatDateTime(request.scheduled_at))}</span></div>
       <div class="assignment-fields">
         <select name="status"><option ${request.status === 'Requested' ? 'selected' : ''}>Requested</option><option ${request.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option><option ${request.status === 'Completed' ? 'selected' : ''}>Completed</option><option ${request.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option></select>
@@ -969,8 +993,51 @@ function drawAdmin(overview, users, addedProblems, plans, requests, interviewers
       </div>
       ${request.assignment_status ? `<p class="muted">Interviewer response: ${escapeHtml(request.assignment_status)}</p>` : ''}
     </form>`).join('') : '<p class="muted">No mock interview requests yet.</p>'}</div>`;
-  $('adminProblemForm').onsubmit = submitAdminProblem;
-  $('adminPlanForm').onsubmit = submitAdminPlan;
+}
+
+function adminTabContent(overview, users, plans, requests, interviewers) {
+  if (adminTab === 'users') return adminUsersTable(users);
+  if (adminTab === 'content') return `<section class="admin-grid">${adminProblemForm()}${adminPlanForm()}</section>${adminProblemCatalog()}${adminStudyPlans(plans)}`;
+  if (adminTab === 'interviewers') return adminInterviewerTable(interviewers);
+  if (adminTab === 'interviews') return adminInterviewRequests(requests, interviewers);
+  return `${adminMetrics(overview)}<section class="admin-grid">
+      <div class="card admin-form">
+        <h2>Quick Actions</h2>
+        <p class="muted">Use the content tab to publish problems and study plans. Use mock interviews to schedule requests.</p>
+        <div class="admin-action-list">
+          <button class="secondary" data-admin-tab="content" type="button">Open content tools</button>
+          <button class="secondary" data-admin-tab="interviews" type="button">Open mock interviews</button>
+        </div>
+      </div>
+      <div class="card admin-form">
+        <h2>Attention</h2>
+        <p class="muted">${Number(overview.pending_interviewers)} interviewer approval(s) and ${Number(overview.open_interviews)} open interview request(s) need review.</p>
+        <div class="admin-action-list">
+          <button class="secondary" data-admin-tab="interviewers" type="button">Review interviewers</button>
+          <button class="secondary" data-admin-tab="users" type="button">View users</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+function drawAdmin(overview, users, addedProblems, plans, requests, interviewers) {
+  const pendingInterviewers = interviewers.filter((interviewer) => !interviewer.approved_at || !interviewer.is_active).length;
+  $('content').innerHTML = `<div class="admin-tabs" role="tablist" aria-label="Admin sections">
+      ${adminTabButton('overview', 'Overview')}
+      ${adminTabButton('users', 'Users', users.length)}
+      ${adminTabButton('content', 'Content', addedProblems.length + plans.length)}
+      ${adminTabButton('interviewers', 'Interviewers', pendingInterviewers)}
+      ${adminTabButton('interviews', 'Mock Interviews', requests.length)}
+    </div>
+    <div class="admin-panel">${adminTabContent(overview, users, plans, requests, interviewers)}</div>`;
+  document.querySelectorAll('[data-admin-tab]').forEach((button) => {
+    button.onclick = () => {
+      adminTab = button.dataset.adminTab;
+      drawAdmin(overview, users, addedProblems, plans, requests, interviewers);
+    };
+  });
+  if ($('adminProblemForm')) $('adminProblemForm').onsubmit = submitAdminProblem;
+  if ($('adminPlanForm')) $('adminPlanForm').onsubmit = submitAdminPlan;
   document.querySelectorAll('.assignment').forEach((form) => {
     form.onsubmit = saveInterviewAssignment;
   });
