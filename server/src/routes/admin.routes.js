@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/async-handler.js';
+import { googleCalendarConfigStatus } from '../utils/google-calendar.js';
 
 const router = express.Router();
 
@@ -52,6 +53,10 @@ router.get('/overview', asyncHandler(async (_req, res) => {
     study_plans: Number(plans[0].count),
     open_interviews: Number(requests[0].count)
   });
+}));
+
+router.get('/calendar/status', asyncHandler(async (_req, res) => {
+  res.json({ calendar: googleCalendarConfigStatus() });
 }));
 
 router.get('/users', asyncHandler(async (_req, res) => {

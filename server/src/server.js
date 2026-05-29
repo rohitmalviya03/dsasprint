@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import passport from 'passport';
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.routes.js';
@@ -17,6 +18,7 @@ import adminRoutes from './routes/admin.routes.js';
 import interviewerRoutes from './routes/interviewer.routes.js';
 import atsRoutes from './routes/ats.routes.js';
 import { configureGoogleAuth } from './auth/google.js';
+import { logger } from './utils/logger.js';
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(serverDir, '../.env') });
@@ -63,6 +65,23 @@ app.use((req, res, next) => cors(corsOptionsFor(req))(req, res, next));
 app.options('*', (req, res, next) => cors(corsOptionsFor(req))(req, res, next));
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use((req, res, next) => {
+  req.id = req.get('x-request-id') || randomUUID();
+  const startedAt = Date.now();
+  res.setHeader('x-request-id', req.id);
+  res.on('finish', () => {
+    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    logger[level]('http_request', {
+      requestId: req.id,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+      userId: req.user?.id
+    });
+  });
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
@@ -100,11 +119,19 @@ if (existsSync(clientEntry)) {
   });
 }
 
-app.use((err, _req, res, _next) => {
-  console.error(err.message || err);
+app.use((err, req, res, _next) => {
+  logger.error('unhandled_error', {
+    requestId: req.id,
+    method: req.method,
+    path: req.originalUrl,
+    statusCode: err.statusCode || 500,
+    errorName: err.name,
+    message: err.message || String(err),
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+  });
   const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err.message || 'Server error');
-  res.status(500).json({ message });
+  res.status(err.statusCode || 500).json({ message, requestId: req.id });
 });
 
 const port = Number(process.env.PORT || 5000);
-app.listen(port, () => console.log(`DSASprint running on http://localhost:${port}`));
+app.listen(port, () => logger.info('server_started', { port, url: `http://localhost:${port}` }));
