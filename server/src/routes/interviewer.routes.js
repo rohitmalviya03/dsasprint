@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth, requireInterviewer } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/async-handler.js';
+import { createInterviewCalendarEvent, isGoogleCalendarConfigured } from '../utils/google-calendar.js';
 
 const router = express.Router();
 
@@ -125,13 +126,46 @@ router.patch('/interviews/:id/respond', asyncHandler(async (req, res) => {
   const parsed = z.object({ response: z.enum(['Accepted', 'Declined']) }).safeParse(req.body);
   if (!id.success || !parsed.success) return res.status(400).json({ message: 'Provide a valid response.' });
   if (parsed.data.response === 'Accepted') {
-    const [result] = await pool.execute(
-      `UPDATE mock_interviews SET assignment_status = 'Accepted'
-       WHERE id = ? AND interviewer_id = ? AND status IN ('Requested', 'Scheduled') AND assignment_status = 'Pending'`,
-      [id.data, req.user.id]
-    );
-    if (!result.affectedRows) return res.status(404).json({ message: 'Pending interview assignment not found.' });
-    return res.json({ message: 'Interview assignment accepted.' });
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [assignments] = await connection.execute(
+        `SELECT mock_interviews.id, mock_interviews.interview_track, mock_interviews.focus_area,
+           mock_interviews.interview_type, mock_interviews.scheduled_at, mock_interviews.duration_minutes,
+           mock_interviews.notes, mock_interviews.status, mock_interviews.meeting_link,
+           users.name AS user_name, users.email AS user_email,
+           interviewer_users.name AS interviewer_name, interviewer_users.email AS interviewer_email
+         FROM mock_interviews
+         INNER JOIN users ON users.id = mock_interviews.user_id
+         INNER JOIN users AS interviewer_users ON interviewer_users.id = mock_interviews.interviewer_id
+         WHERE mock_interviews.id = ? AND mock_interviews.interviewer_id = ?
+           AND mock_interviews.status IN ('Requested', 'Scheduled')
+           AND mock_interviews.assignment_status = 'Pending'
+         LIMIT 1 FOR UPDATE`,
+        [id.data, req.user.id]
+      );
+      if (!assignments.length) {
+        await connection.rollback();
+        return res.status(404).json({ message: 'Pending interview assignment not found.' });
+      }
+      const assignment = assignments[0];
+      let meetingLink = assignment.meeting_link;
+      if (assignment.status === 'Scheduled' && !meetingLink && isGoogleCalendarConfigured()) {
+        const event = await createInterviewCalendarEvent(assignment);
+        meetingLink = event.meetingLink;
+      }
+      await connection.execute(
+        'UPDATE mock_interviews SET assignment_status = "Accepted", meeting_link = ? WHERE id = ?',
+        [meetingLink || null, id.data]
+      );
+      await connection.commit();
+      return res.json({ message: meetingLink ? 'Interview assignment accepted. The learner can now join from their mock interview page.' : 'Interview assignment accepted.' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
   const connection = await pool.getConnection();
   try {
